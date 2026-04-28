@@ -2,9 +2,11 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func PathExists(path string) bool {
@@ -49,4 +51,40 @@ func GetRemoteFileSize(url string, headers map[string]string) (int64, error) {
 	}
 
 	return resp.ContentLength, nil
+}
+
+// ParseContentRange 从 Content-Range 响应头解析文件总大小
+// 支持: "bytes 0-5242879/104857600" 和 "bytes */104857600"
+func ParseContentRange(header string) (int64, error) {
+	if header == "" {
+		return 0, errors.New("empty Content-Range header")
+	}
+	slashIdx := strings.LastIndex(header, "/")
+	if slashIdx < 0 {
+		return 0, errors.New("invalid Content-Range format: " + header)
+	}
+	totalStr := header[slashIdx+1:]
+	if totalStr == "*" {
+		return 0, errors.New("unknown total size in Content-Range")
+	}
+	return strconv.ParseInt(totalStr, 10, 64)
+}
+
+// FormatBytes 将字节数格式化为人类可读字符串
+func FormatBytes(n int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+	switch {
+	case n >= GB:
+		return fmt.Sprintf("%.2f GB", float64(n)/float64(GB))
+	case n >= MB:
+		return fmt.Sprintf("%.2f MB", float64(n)/float64(MB))
+	case n >= KB:
+		return fmt.Sprintf("%.2f KB", float64(n)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }

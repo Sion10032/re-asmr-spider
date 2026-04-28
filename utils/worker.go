@@ -79,7 +79,10 @@ func (wp *WorkerPool) Start() {
 				err := t.Download()
 				if err != nil {
 					Error(i18n.T("download_error", t.FullPath, err))
-					_ = os.Remove(t.FullPath)
+					// 有 .part 文件则保留部分文件供下次续传
+					if !PathExists(t.FullPath + partFileSuffix) {
+						_ = os.Remove(t.FullPath)
+					}
 					// 更新活动时间
 					GlobalMonitor.UpdateActivity()
 					// 调用失败回调

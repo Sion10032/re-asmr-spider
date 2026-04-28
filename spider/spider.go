@@ -276,7 +276,9 @@ func (ac *ASMRClient) downloadFile(url string, dirPath string, fileName string, 
 		"Referer": "https://www.asmr.one/",
 	}
 
-	if utils.PathExists(savePath) {
+	hasPart := utils.PathExists(savePath + ".part")
+
+	if !hasPart && utils.PathExists(savePath) {
 		// 获取本地文件大小
 		localSize, err := utils.GetFileSize(savePath)
 		if err != nil {

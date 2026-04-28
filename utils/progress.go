@@ -7,16 +7,21 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+type ProgressBarOptions struct {
+	Total  int64
+	Offset int64
+	Prefix string
+}
+
 type ProgressBar struct {
 	bar      *progressbar.ProgressBar
 	finished bool
 }
 
-func NewProgressBar(total int64, prefix string) *ProgressBar {
-	// 创建进度条，配置为适合文件下载的样式
+func NewProgressBar(opts ProgressBarOptions) *ProgressBar {
 	bar := progressbar.NewOptions64(
-		total,
-		progressbar.OptionSetDescription(prefix),
+		opts.Total,
+		progressbar.OptionSetDescription(opts.Prefix),
 		progressbar.OptionSetWriter(io.Discard), // 先禁用输出
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetWidth(40),
@@ -41,8 +46,8 @@ func NewProgressBar(total int64, prefix string) *ProgressBar {
 	// 重新启用输出到 stderr (标准错误输出)
 	bar.RenderBlank()
 	bar = progressbar.NewOptions64(
-		total,
-		progressbar.OptionSetDescription(prefix),
+		opts.Total,
+		progressbar.OptionSetDescription(opts.Prefix),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetWidth(40),
 		progressbar.OptionThrottle(100),
@@ -63,10 +68,15 @@ func NewProgressBar(total int64, prefix string) *ProgressBar {
 		}),
 	)
 
-	return &ProgressBar{
+	pb := &ProgressBar{
 		bar:      bar,
 		finished: false,
 	}
+
+	if opts.Offset > 0 {
+		pb.Add(opts.Offset)
+	}
+	return pb
 }
 
 func (pb *ProgressBar) Add(n int64) {

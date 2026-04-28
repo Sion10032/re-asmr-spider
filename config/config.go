@@ -128,6 +128,10 @@ func validateConfig(cfg *Config) {
 	if cfg.BufferSizeMB > 64 {
 		cfg.BufferSizeMB = 64
 	}
+	// 验证MaxThread，如果小于1，设置为默认值1
+	if cfg.MaxThread < 1 {
+		cfg.MaxThread = 1
+	}
 }
 
 // GetBufferSize 获取字节单位的buffer大小
