@@ -126,8 +126,10 @@ func (a *App) Download(opts DownloadOptions) *DownloadResult {
 	return result
 }
 
-// 带超时监控和格式选择的下载
-func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, onFormatConflict func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy) {
+// 带超时监控和格式选择的下载。
+// baseFilter 为预先确定的全局过滤策略（如交互模式选择的 -only-formats 硬白名单），
+// 为 nil 时退回到原有的"按冲突逐个询问"流程，行为不变。
+func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, baseFilter *spider.FilterStrategy, onFormatConflict func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy) {
 	// 先暂时保存下载状态（不含格式策略）
 	if err := config.SaveDownloadState(a.Config, tasks); err != nil {
 		utils.Error(i18n.T("save_download_state_failed", err))
@@ -145,6 +147,13 @@ func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, onFormatConfl
 				utils.Error(i18n.T("save_download_state_failed", err))
 			}
 		}
+	}
+
+	// 是否使用全局硬白名单：此时跳过逐个冲突询问，直接整体过滤。
+	useGlobalFilter := baseFilter != nil && len(baseFilter.OnlyFormats) > 0
+	if useGlobalFilter {
+		// 预先持久化策略，确保中断后续传能恢复同样的过滤。
+		saveStrategyCallback(baseFilter)
 	}
 
 	// 创建一个包装的回调函数，注入保存回调
@@ -182,13 +191,19 @@ func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, onFormatConfl
 		}()
 
 		// 执行下载
-		result := a.Download(DownloadOptions{
-			Tasks:            tasks,
-			ShowProgress:     true,
-			WaitForInput:     false,
-			TimeoutDetected:  timeoutDetected,
-			OnFormatConflict: wrappedCallback,
-		})
+		opts := DownloadOptions{
+			Tasks:           tasks,
+			ShowProgress:    true,
+			WaitForInput:    false,
+			TimeoutDetected: timeoutDetected,
+		}
+		if useGlobalFilter {
+			// 全局硬白名单：作为预过滤策略整体应用，不再逐个询问冲突。
+			opts.FormatFilter = baseFilter
+		} else {
+			opts.OnFormatConflict = wrappedCallback
+		}
+		result := a.Download(opts)
 
 		// 停止监控
 		close(stopMonitor)
@@ -252,5 +267,6 @@ func convertToConfigStrategy(spiderStrategy *spider.FilterStrategy) *config.Form
 		PriorityFormats:  spiderStrategy.PriorityFormats,
 		ManualSelections: spiderStrategy.ManualSelections,
 		IncludeFormats:   spiderStrategy.IncludeFormats,
+		OnlyFormats:      spiderStrategy.OnlyFormats,
 	}
 }

@@ -5,6 +5,26 @@ import (
 	"strings"
 )
 
+// ParseFormatList 解析逗号分隔的扩展名列表，统一转小写并补上点号前缀。
+// 例: "wav, MP3" -> [".wav", ".mp3"]。空项被忽略。
+func ParseFormatList(formatStr string) []string {
+	parts := strings.Split(formatStr, ",")
+	result := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		ext := strings.ToLower(strings.TrimSpace(part))
+		if ext == "" {
+			continue
+		}
+		if !strings.HasPrefix(ext, ".") {
+			ext = "." + ext
+		}
+		result = append(result, ext)
+	}
+
+	return result
+}
+
 // FileInfo 文件信息
 type FileInfo struct {
 	Track     *track
@@ -68,10 +88,15 @@ func collectFiles(tracks []track, currentPath string, analysis *FormatAnalysis) 
 
 // findConflicts 查找同名不同格式的文件 (全局检测，不区分目录)
 func findConflicts(analysis *FormatAnalysis) {
-	// 按 baseName 全局分组 (不包含路径)
+	analysis.ConflictGroups = buildConflictGroups(analysis.AllFiles)
+}
+
+// buildConflictGroups 在给定文件集合内，按 baseName 全局分组 (不包含路径)，
+// 返回存在多种扩展名的冲突组。可在白名单子集上重新计算冲突。
+func buildConflictGroups(files []*FileInfo) map[string]*FormatGroup {
 	groups := make(map[string]*FormatGroup)
 
-	for _, file := range analysis.AllFiles {
+	for _, file := range files {
 		key := file.BaseName // 只用文件名，不包含路径
 
 		if group, exists := groups[key]; exists {
@@ -97,11 +122,13 @@ func findConflicts(analysis *FormatAnalysis) {
 	}
 
 	// 只保留有冲突的组（多于1个扩展名）
+	conflicts := make(map[string]*FormatGroup)
 	for key, group := range groups {
 		if len(group.Extensions) > 1 {
-			analysis.ConflictGroups[key] = group
+			conflicts[key] = group
 		}
 	}
+	return conflicts
 }
 
 // FilterStrategy 过滤策略
@@ -110,45 +137,75 @@ type FilterStrategy struct {
 	PriorityFormats   []string            // 优先格式列表（优先级从高到低）
 	ManualSelections  map[string][]string // 手动选择: baseName -> 选中的扩展名列表
 	IncludeFormats    []string            // 额外包含的扩展名（冲突解决后追加下载）
+	OnlyFormats       []string            // 硬白名单：全局只保留这些扩展名（其余一律丢弃）
 }
 
 // ApplyFilter 应用过滤策略
 func (analysis *FormatAnalysis) ApplyFilter(strategy *FilterStrategy) []*FileInfo {
-	if strategy.Mode == "all" || len(analysis.ConflictGroups) == 0 {
-		return analysis.AllFiles
-	}
+	// 候选集合：默认全部文件；冲突组：默认全局分析结果
+	candidateFiles := analysis.AllFiles
+	conflictGroups := analysis.ConflictGroups
 
-	filtered := make([]*FileInfo, 0)
-	processedFiles := make(map[*FileInfo]bool) // 记录已处理的文件
-
-	for _, file := range analysis.AllFiles {
-		// 检查是否已被处理
-		if processedFiles[file] {
-			continue
+	// 1) 硬白名单（-only-formats）：全局只保留指定扩展名的文件，其余一律丢弃。
+	//    这一步无视有无同名冲突，因此能解决"wav 与 mp3 文件名不同、优先级管不到"的情况。
+	if len(strategy.OnlyFormats) > 0 {
+		onlyMap := make(map[string]bool, len(strategy.OnlyFormats))
+		for _, ext := range strategy.OnlyFormats {
+			onlyMap[ext] = true
 		}
 
-		key := file.BaseName // 全局检测，只用文件名
-
-		// 如果这个文件属于冲突组
-		if group, hasConflict := analysis.ConflictGroups[key]; hasConflict {
-			// 对于该文件名的所有实例，应用相同的策略
-			selectedFiles := selectFiles(group, strategy)
-
-			// 标记所有相关文件为已处理
-			for _, f := range group.Files {
-				processedFiles[f] = true
+		whitelisted := make([]*FileInfo, 0, len(analysis.AllFiles))
+		for _, file := range analysis.AllFiles {
+			if onlyMap[file.Extension] {
+				whitelisted = append(whitelisted, file)
 			}
+		}
+		candidateFiles = whitelisted
+		// 在白名单子集内重新计算冲突组（原冲突组可能包含已被排除的格式）
+		conflictGroups = buildConflictGroups(candidateFiles)
+	}
 
-			// 只添加被选中的文件
-			filtered = append(filtered, selectedFiles...)
-		} else {
-			// 非冲突文件直接添加
+	filtered := make([]*FileInfo, 0, len(candidateFiles))
+	processedFiles := make(map[*FileInfo]bool) // 记录已处理的文件
+
+	// 2) 在候选集合上做冲突解决（priority/manual）。
+	//    "all" 模式或无冲突时，候选集合整体保留。
+	if strategy.Mode == "all" || len(conflictGroups) == 0 {
+		for _, file := range candidateFiles {
 			filtered = append(filtered, file)
 			processedFiles[file] = true
 		}
+	} else {
+		for _, file := range candidateFiles {
+			// 检查是否已被处理
+			if processedFiles[file] {
+				continue
+			}
+
+			key := file.BaseName // 全局检测，只用文件名
+
+			// 如果这个文件属于冲突组
+			if group, hasConflict := conflictGroups[key]; hasConflict {
+				// 对于该文件名的所有实例，应用相同的策略
+				selectedFiles := selectFiles(group, strategy)
+
+				// 标记所有相关文件为已处理
+				for _, f := range group.Files {
+					processedFiles[f] = true
+				}
+
+				// 只添加被选中的文件
+				filtered = append(filtered, selectedFiles...)
+			} else {
+				// 非冲突文件直接添加
+				filtered = append(filtered, file)
+				processedFiles[file] = true
+			}
+		}
 	}
 
-	// 额外下载指定扩展名的文件（冲突解决后追加）
+	// 3) 额外下载指定扩展名的文件（冲突解决后追加）。
+	//    遍历全部文件，因此能把被白名单排除的封面/字幕等加回来。
 	if len(strategy.IncludeFormats) > 0 {
 		// 创建扩展名快速查找map
 		includeMap := make(map[string]bool)

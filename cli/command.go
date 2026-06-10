@@ -114,11 +114,19 @@ func (cmd *Command) Execute() {
 
 	// 构建格式过滤策略
 	var filterStrategy *spider.FilterStrategy
-	if cmd.Flags.FormatPriority != "" || cmd.Flags.IncludeFormats != "" {
+	if cmd.Flags.FormatPriority != "" || cmd.Flags.IncludeFormats != "" || cmd.Flags.OnlyFormats != "" {
 		filterStrategy = &spider.FilterStrategy{
 			Mode:            "priority",
 			PriorityFormats: nil,
 			IncludeFormats:  nil,
+			OnlyFormats:     nil,
+		}
+
+		// 硬白名单：全局只保留指定扩展名
+		if cmd.Flags.OnlyFormats != "" {
+			onlyFormats := cmd.parseFormatList(cmd.Flags.OnlyFormats)
+			filterStrategy.OnlyFormats = onlyFormats
+			utils.Info(i18n.T("only_formats_applied", strings.Join(onlyFormats, ", ")))
 		}
 
 		// 优先级模式
@@ -132,7 +140,7 @@ func (cmd *Command) Execute() {
 		if cmd.Flags.IncludeFormats != "" {
 			includeFormats := cmd.parseFormatList(cmd.Flags.IncludeFormats)
 			filterStrategy.IncludeFormats = includeFormats
-			utils.Infof("将额外下载以下扩展名的文件: %s", strings.Join(includeFormats, ", "))
+			utils.Info(i18n.T("include_formats_applied", strings.Join(includeFormats, ", ")))
 		}
 	}
 
@@ -159,22 +167,7 @@ func (cmd *Command) Execute() {
 	}
 }
 
-// parseFormatList 解析格式列表字符串
+// parseFormatList 解析格式列表字符串（委托给 spider.ParseFormatList，保持单一实现）
 func (cmd *Command) parseFormatList(formatStr string) []string {
-	parts := strings.Split(formatStr, ",")
-	result := make([]string, 0, len(parts))
-
-	for _, part := range parts {
-		ext := strings.ToLower(strings.TrimSpace(part))
-		if ext == "" {
-			continue
-		}
-		// 确保有点号前缀
-		if !strings.HasPrefix(ext, ".") {
-			ext = "." + ext
-		}
-		result = append(result, ext)
-	}
-
-	return result
+	return spider.ParseFormatList(formatStr)
 }

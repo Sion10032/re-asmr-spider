@@ -136,11 +136,18 @@ For automation and scripting, use CLI mode to download directly without interact
 # Use custom config file
 ./re-asmr-spider -config /path/to/config.json -download RJ123456
 
-# Download priority
-# When flac conflicts occur, download only flac
-# For example, if files exist in flac, wav, mp3, and ogg formats with same name, only flac will be downloaded.
-# But if flac doesn't exist, wav will be downloaded. If neither exists, mp3 and ogg will be downloaded
+# Download priority (conflict resolution only)
+# When the SAME-NAMED file exists in multiple formats, keep only the highest priority one.
+# For example, if files exist in flac, wav, mp3, and ogg formats with the same name, only flac is kept.
+# But if flac doesn't exist, wav is kept. Note: format-priority does NOT exclude files that have no
+# same-named counterpart (e.g. a standalone mp3 with no matching flac still downloads).
 ./re-asmr-spider -download RJ123456 -format-priority flac,wav
+
+# Hard filter: download ONLY wav, drop everything else (other audio, cover, subtitles, text)
+./re-asmr-spider -download RJ123456 -only-formats wav
+
+# Download only wav, but keep cover image and subtitles
+./re-asmr-spider -download RJ123456 -only-formats wav -include-formats jpg,lrc
 
 # Download flac with priority, and additionally download lrc subtitle files
 ./re-asmr-spider -download RJ123456 -format-priority flac,wav -include-formats lrc
@@ -159,13 +166,18 @@ For automation and scripting, use CLI mode to download directly without interact
 -buffer-size int      Buffer size in MB (1-64, default: 8)
 -proxy string         HTTP/HTTPS proxy (e.g., http://127.0.0.1:7890)
 -format-priority string
-                      Format priority for resolving conflicting files with the same name, reducing downloads, comma-separated (e.g., flac,wav,mp3)
+                      Format priority for resolving same-name conflicts only, comma-separated (e.g., flac,wav,mp3)
                       When files with the same name exist in multiple formats, only download the highest priority format
+                      Does NOT exclude formats that have no same-named counterpart; use -only-formats for a hard filter
                       (Interactive mode will prompt user for each choice)
+-only-formats string
+                      Hard whitelist: globally download ONLY these extensions, comma-separated (e.g., wav,flac)
+                      Everything else (other audio formats, cover images, subtitles, text) is dropped
+                      To keep cover/subtitles, add them back via -include-formats
 -include-formats string
                       Additional file extensions to download, comma-separated (e.g., lrc,jpg)
                       After resolving conflicts above, download all files with specified extensions
-                      Can be used with -format-priority
+                      Can be used with -format-priority and -only-formats
 -version              Show version information
 -help                 Show help message
 ```

@@ -136,11 +136,17 @@ go build -o re-asmr-spider
 # 使用自定义配置文件
 ./re-asmr-spider -config /path/to/config.json -download RJ123456
 
-# 下载优先级
-# 当出现有关 flac 的冲突时，仅下载flac
-# 比如同时存在 flac wav mp3 ogg 四个格式的同名文件，则仅下载flac。
-# 但若没有 flac，则会下载wav。都没有时则会下载 mp3 与 ogg 
+# 下载优先级（仅解决同名冲突）
+# 仅当"同名文件存在多种格式"时生效：比如同时存在 flac wav mp3 ogg 四个同名文件，则仅下载flac。
+# 但若没有 flac，则会下载wav。
+# 注意：它不会排除没有同名对的其它格式（例如没有对应 flac 的单独 mp3 仍会下载）。
 ./re-asmr-spider -download RJ123456 -format-priority flac,wav
+
+# 硬过滤：只下载 wav，其余（含其它音频、封面、字幕、文本）全部丢弃
+./re-asmr-spider -download RJ123456 -only-formats wav
+
+# 只下载 wav，并保留封面图和字幕
+./re-asmr-spider -download RJ123456 -only-formats wav -include-formats jpg,lrc
 
 # 优先下载 flac，并额外下载 lrc 字幕文件
 ./re-asmr-spider -download RJ123456 -format-priority flac,wav -include-formats lrc
@@ -159,13 +165,18 @@ go build -o re-asmr-spider
 -buffer-size int      缓冲区大小（MB），范围 1-64，默认 8
 -proxy string         HTTP/HTTPS 代理（例如：http://127.0.0.1:7890）
 -format-priority string
-                      格式优先级，用于解决冲突的同名文件，减少下载量，逗号分隔（例如：flac,wav,mp3）
+                      格式优先级，仅用于解决同名文件冲突，逗号分隔（例如：flac,wav,mp3）
                       当同名文件存在多种格式时，只下载优先级最高的格式
+                      不会排除没有同名对的其它格式；需要硬过滤请用 -only-formats
                       （交互模式会逐个询问用户选择）
+-only-formats string
+                      硬白名单：全局只下载指定扩展名，逗号分隔（例如：wav,flac）
+                      其余文件（含其它音频格式、封面、字幕、文本）一律丢弃
+                      如需保留封面/字幕，请配合 -include-formats 加回
 -include-formats string
                       额外下载的扩展名，逗号分隔（例如：lrc,jpg）
                       在上述冲突解决后，额外下载所有指定扩展名的文件
-                      可与 -format-priority 配合使用
+                      可与 -format-priority、-only-formats 配合使用
 -version              显示版本信息
 -help                 显示帮助信息
 ```

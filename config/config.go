@@ -11,6 +11,7 @@ type FormatStrategy struct {
 	PriorityFormats  []string            `json:"priority_formats"`   // 优先格式列表
 	ManualSelections map[string][]string `json:"manual_selections"`  // 手动选择记录
 	IncludeFormats   []string            `json:"include_formats"`    // 额外包含的扩展名
+	OnlyFormats      []string            `json:"only_formats"`       // 硬白名单：全局只保留这些扩展名
 }
 
 type DownloadState struct {

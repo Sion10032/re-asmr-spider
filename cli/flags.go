@@ -18,7 +18,8 @@ type Flags struct {
 	BufferSizeMB    int
 	Proxy           string
 	FormatPriority  string // 格式优先级 (例: flac,wav,mp3)
-	IncludeFormats  string // 只下载指定的扩展名 (例: mp3,flac)，无论是否冲突
+	IncludeFormats  string // 额外包含的扩展名 (例: lrc,jpg)，冲突解决后追加下载
+	OnlyFormats     string // 硬白名单：全局只下载这些扩展名 (例: wav,flac)，其余一律丢弃
 }
 
 // ParseFlags 解析命令行参数
@@ -37,7 +38,8 @@ func ParseFlags() *Flags {
 	flag.IntVar(&f.BufferSizeMB, "buffer-size", 0, "缓冲区大小(MB) (默认使用配置文件)")
 	flag.StringVar(&f.Proxy, "proxy", "", "HTTP/HTTPS代理地址 (例: http://127.0.0.1:7890)")
 	flag.StringVar(&f.FormatPriority, "format-priority", "", "格式优先级，逗号分隔 (例: flac,wav,mp3)")
-	flag.StringVar(&f.IncludeFormats, "include-formats", "", "只下载指定扩展名的文件，逗号分隔 (例: mp3,flac)，无论是否冲突")
+	flag.StringVar(&f.IncludeFormats, "include-formats", "", "额外包含的扩展名，逗号分隔 (例: lrc,jpg)，冲突解决后追加下载")
+	flag.StringVar(&f.OnlyFormats, "only-formats", "", "硬白名单：全局只下载指定扩展名，逗号分隔 (例: wav,flac)，其余一律丢弃")
 
 	flag.Parse()
 

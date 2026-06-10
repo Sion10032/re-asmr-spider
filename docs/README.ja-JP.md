@@ -136,11 +136,17 @@ go build -o re-asmr-spider
 # カスタム設定ファイルを使用
 ./re-asmr-spider -config /path/to/config.json -download RJ123456
 
-# ダウンロード優先順位
-# flacに関する競合が発生した場合、flacのみダウンロード
-# 例えば flac wav mp3 ogg の4つの形式で同名ファイルが存在する場合、flacのみダウンロード。
-# ただし flac がない場合は wav をダウンロード。どちらもない場合は mp3 と ogg をダウンロード
+# ダウンロード優先順位（同名競合の解決のみ）
+# 「同名ファイルが複数形式で存在する」場合のみ有効：例えば flac wav mp3 ogg の4形式の同名ファイルがある場合、flacのみ。
+# ただし flac がない場合は wav をダウンロード。
+# 注意：同名の対応ファイルがない他形式は除外されません（対応する flac のない単独 mp3 は依然ダウンロードされます）。
 ./re-asmr-spider -download RJ123456 -format-priority flac,wav
+
+# ハードフィルタ：wav のみダウンロードし、その他（他の音声・カバー・字幕・テキスト）はすべて破棄
+./re-asmr-spider -download RJ123456 -only-formats wav
+
+# wav のみダウンロードしつつ、カバー画像と字幕は残す
+./re-asmr-spider -download RJ123456 -only-formats wav -include-formats jpg,lrc
 
 # flacを優先的にダウンロードし、さらに lrc 字幕ファイルをダウンロード
 ./re-asmr-spider -download RJ123456 -format-priority flac,wav -include-formats lrc
@@ -159,13 +165,18 @@ go build -o re-asmr-spider
 -buffer-size int      バッファサイズ（MB）、範囲 1-64、デフォルト 8
 -proxy string         HTTP/HTTPSプロキシ（例：http://127.0.0.1:7890）
 -format-priority string
-                      形式の優先順位、競合する同名ファイルを解決しダウンロード量を削減、カンマ区切り（例：flac,wav,mp3）
+                      形式の優先順位、同名ファイルの競合解決のみに使用、カンマ区切り（例：flac,wav,mp3）
                       同名ファイルが複数の形式で存在する場合、最も優先順位の高い形式のみダウンロード
+                      同名の対応がない他形式は除外されません。ハードフィルタには -only-formats を使用
                       （インタラクティブモードでは各選択をユーザーに尋ねます）
+-only-formats string
+                      ハードホワイトリスト：指定拡張子のみグローバルにダウンロード、カンマ区切り（例：wav,flac）
+                      その他のファイル（他の音声形式・カバー・字幕・テキスト）はすべて破棄
+                      カバー/字幕を残すには -include-formats で追加してください
 -include-formats string
                       追加でダウンロードする拡張子、カンマ区切り（例：lrc,jpg）
                       上記の競合解決後、指定された拡張子のすべてのファイルを追加ダウンロード
-                      -format-priority と組み合わせて使用可能
+                      -format-priority・-only-formats と組み合わせて使用可能
 -version              バージョン情報を表示
 -help                 ヘルプメッセージを表示
 ```

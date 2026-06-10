@@ -142,5 +142,9 @@
   "format_batch_enabled": "Batch mode enabled (selection: %s), will apply to remaining %d files",
   "format_all_remaining_enabled": "Batch mode enabled (all formats), will apply to remaining %d files",
   "format_all_global_enabled": "Global mode enabled, all conflicted files will download all formats",
-  "format_priority_applied": "Format priority applied: %s"
+  "format_priority_applied": "Format priority applied: %s",
+  "only_formats_applied": "Only downloading these formats: %s",
+  "include_formats_applied": "Additionally downloading these formats: %s",
+  "format_filter_prompt": "Download only specific formats? (blank = keep all and resolve conflicts as usual; e.g. wav or wav,flac)",
+  "format_filter_include_prompt": "Also keep which extra files? (blank = none; e.g. jpg,lrc for cover & subtitles)"
 }

@@ -142,5 +142,9 @@
   "format_batch_enabled": "バッチモードを有効化 (選択: %s)、残り %d ファイルに適用されます",
   "format_all_remaining_enabled": "バッチモード有効（全形式）、残り %d ファイルに適用されます",
   "format_all_global_enabled": "グローバルモード有効、すべての競合ファイルが全形式をダウンロードします",
-  "format_priority_applied": "形式の優先順位を適用: %s"
+  "format_priority_applied": "形式の優先順位を適用: %s",
+  "only_formats_applied": "次の形式のみダウンロード: %s",
+  "include_formats_applied": "追加でダウンロードする形式: %s",
+  "format_filter_prompt": "特定の形式のみダウンロード？(空欄=すべて保持し競合は通常通り確認；例: wav または wav,flac)",
+  "format_filter_include_prompt": "追加で残すファイルは？(空欄=なし；例: jpg,lrc でカバーと字幕)"
 }

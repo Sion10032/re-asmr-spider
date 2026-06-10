@@ -44,13 +44,19 @@ func PrintHelp() {
 
   -format-priority string
         格式优先级，逗号分隔 (例: flac,wav,mp3)
-        当同名文件存在多种格式时，只下载优先级最高的格式
+        仅在"同名文件存在多种格式"时生效：只下载优先级最高的那个
+        注意：它不会排除没有同名对的其它格式文件；要硬过滤请用 -only-formats
         (交互模式会逐个询问用户选择)
+
+  -only-formats string
+        硬白名单：全局只下载指定扩展名的文件，逗号分隔 (例: wav,flac)
+        其余文件（含其它音频格式、封面、字幕、文本等）一律丢弃
+        如需保留封面/字幕等，配合 -include-formats 加回
 
   -include-formats string
         额外包含的扩展名，逗号分隔 (例: lrc,jpg)
         冲突解决后，额外下载所有指定扩展名的文件
-        可与 -format-priority 配合使用
+        可与 -format-priority、-only-formats 配合使用
 
   -version
         显示版本信息
@@ -80,8 +86,14 @@ func PrintHelp() {
   # 指定配置文件
   %s -config /path/to/config.json -download RJ123456
 
-  # 只下载FLAC格式（遇到同名文件时优先选择FLAC）
+  # 同名文件存在多格式时优先选FLAC（不会排除无同名对的其它格式）
   %s -download RJ123456 -format-priority flac,wav,mp3
+
+  # 只下载wav，其余（含mp3、封面、字幕）全部丢弃（硬过滤）
+  %s -download RJ123456 -only-formats wav
+
+  # 只下载wav，并保留封面和字幕
+  %s -download RJ123456 -only-formats wav -include-formats jpg,lrc
 
   # 额外下载所有txt和jpg文件
   %s -download RJ123456 -include-formats txt,jpg
@@ -94,6 +106,8 @@ func PrintHelp() {
   数据来源: https://asmr.one
 `,
 		i18n.AppName(),
+		os.Args[0],
+		os.Args[0],
 		os.Args[0],
 		os.Args[0],
 		os.Args[0],

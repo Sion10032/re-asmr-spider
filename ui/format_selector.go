@@ -19,6 +19,34 @@ func getExtensionsKey(extensions []string) string {
 	return strings.Join(sorted, "|")
 }
 
+// PromptFormatFilter 在下载开始前询问可选的全局格式过滤（硬白名单）。
+// 用户留空表示不启用，返回 nil（沿用原有的逐个冲突询问流程）；
+// 否则返回含 OnlyFormats（及可选 IncludeFormats）的策略，作为全局硬过滤应用。
+func PromptFormatFilter() *spider.FilterStrategy {
+	onlyInput := ReadInput(i18n.T("format_filter_prompt"))
+	onlyFormats := spider.ParseFormatList(onlyInput)
+	if len(onlyFormats) == 0 {
+		// 未指定 -> 不启用全局过滤，保持原有行为
+		return nil
+	}
+
+	strategy := &spider.FilterStrategy{
+		Mode:        "priority",
+		OnlyFormats: onlyFormats,
+	}
+	utils.Success(i18n.T("only_formats_applied", strings.Join(onlyFormats, ", ")))
+
+	// 既然要硬过滤，再问一句是否额外保留封面/字幕等
+	includeInput := ReadInput(i18n.T("format_filter_include_prompt"))
+	includeFormats := spider.ParseFormatList(includeInput)
+	if len(includeFormats) > 0 {
+		strategy.IncludeFormats = includeFormats
+		utils.Success(i18n.T("include_formats_applied", strings.Join(includeFormats, ", ")))
+	}
+
+	return strategy
+}
+
 // ShowFormatConflictPrompt 逐个显示格式冲突并获取用户选择
 // saveCallback: 每次选择后的保存回调函数
 func ShowFormatConflictPrompt(analysis *spider.FormatAnalysis, saveCallback func(*spider.FilterStrategy)) *spider.FilterStrategy {

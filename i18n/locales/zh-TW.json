@@ -142,5 +142,9 @@
   "format_batch_enabled": "已啟用批量模式 (選擇: %s)，將應用到剩餘 %d 個檔案",
   "format_all_remaining_enabled": "已啟用批量模式（所有格式），將應用到剩餘 %d 個檔案",
   "format_all_global_enabled": "已啟用全局模式，所有衝突檔案都將下載全部格式",
-  "format_priority_applied": "應用格式優先級: %s"
+  "format_priority_applied": "應用格式優先級: %s",
+  "only_formats_applied": "只下載以下格式: %s",
+  "include_formats_applied": "額外下載以下格式: %s",
+  "format_filter_prompt": "只下載特定格式？(留空=全部並按需處理衝突；例: wav 或 wav,flac)",
+  "format_filter_include_prompt": "額外保留哪些檔案？(留空=不額外保留；例: jpg,lrc 保留封面和字幕)"
 }

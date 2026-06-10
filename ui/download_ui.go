@@ -22,8 +22,12 @@ func StartDownload(application *app.App) {
 	}
 
 	tasks := strings.Split(rjNumbers, " ")
+
+	// 可选的全局格式过滤（硬白名单）。留空则返回 nil，沿用逐个冲突询问。
+	baseFilter := PromptFormatFilter()
+
 	// BuildFormatSelectorCallback 会接收保存回调作为参数
-	application.DownloadWithMonitorAndFormatSelector(tasks, func(analysis *spider.FormatAnalysis, saveCallback func(*spider.FilterStrategy)) *spider.FilterStrategy {
+	application.DownloadWithMonitorAndFormatSelector(tasks, baseFilter, func(analysis *spider.FormatAnalysis, saveCallback func(*spider.FilterStrategy)) *spider.FilterStrategy {
 		return BuildFormatSelectorCallback(saveCallback)(analysis)
 	})
 }

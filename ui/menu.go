@@ -20,6 +20,7 @@ func RunInteractive(application *app.App) {
 	// 检查未完成的下载
 	application.CheckUnfinishedDownload(func(tasks []string, savedStrategy *config.FormatStrategy) {
 		// 如果有保存的格式策略，询问用户是否使用
+		var baseFilter *spider.FilterStrategy
 		var formatCallback func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy
 
 		if savedStrategy != nil {
@@ -37,6 +38,12 @@ func RunInteractive(application *app.App) {
 					Mode:             savedStrategy.Mode,
 					PriorityFormats:  savedStrategy.PriorityFormats,
 					ManualSelections: savedStrategy.ManualSelections,
+					IncludeFormats:   savedStrategy.IncludeFormats,
+					OnlyFormats:      savedStrategy.OnlyFormats,
+				}
+				// 若保存的是全局硬白名单，则作为预过滤整体恢复应用。
+				if len(spiderStrategy.OnlyFormats) > 0 {
+					baseFilter = spiderStrategy
 				}
 				formatCallback = func(analysis *spider.FormatAnalysis, saveCallback func(*spider.FilterStrategy)) *spider.FilterStrategy {
 					return spiderStrategy
@@ -55,7 +62,7 @@ func RunInteractive(application *app.App) {
 			}
 		}
 
-		application.DownloadWithMonitorAndFormatSelector(tasks, formatCallback)
+		application.DownloadWithMonitorAndFormatSelector(tasks, baseFilter, formatCallback)
 	})
 
 	// 主菜单循环
