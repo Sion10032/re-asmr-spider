@@ -151,6 +151,114 @@ func TestApplyFilter_OnlyFormats_NoPriorityKeepsAllWhitelisted(t *testing.T) {
 	}
 }
 
+func TestNormalizeRJID(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"uppercase prefix", "RJ123456", "123456"},
+		{"lowercase prefix", "rj123456", "123456"},
+		{"no prefix", "123456", "123456"},
+		{"surrounded by spaces", " RJ123456 ", "123456"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NormalizeRJID(tc.input)
+			if got != tc.want {
+				t.Fatalf("NormalizeRJID(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTrackKey(t *testing.T) {
+	cases := []struct {
+		name       string
+		hash, path string
+		title      string
+		want       string
+	}{
+		{"hash present", "abc123", "dir/sub", "track01.wav", "abc123"},
+		{"hash empty falls back", "", "dir/sub", "voice.wav", "dir/sub|voice.wav"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := TrackKey(tc.hash, tc.path, tc.title)
+			if got != tc.want {
+				t.Fatalf("TrackKey(%q, %q, %q) = %q, want %q", tc.hash, tc.path, tc.title, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCountByFormat(t *testing.T) {
+	files := []*FileInfo{
+		{Path: "audio/a.wav"},
+		{Path: "audio/b.flac"},
+		{Path: "audio/c.mp3"},
+		{Path: "audio/d.aac"},
+		{Path: "video/e.mp4"},
+		{Path: "docs/f.txt"},
+		{Path: "noext"},
+	}
+
+	got := CountByFormat(files)
+	want := FormatStats{Total: 7, Wav: 1, Flac: 1, Mp3: 1, Aac: 1, Other: 3}
+	if got != want {
+		t.Fatalf("CountByFormat() = %+v, want %+v", got, want)
+	}
+}
+
+// file-manual 模式：完全按选中 key 集合筛文件，跳过 OnlyFormats/冲突/Include 全部逻辑。
+func TestApplyFilter_FileManual(t *testing.T) {
+	tracks := []track{
+		{Type: "audio", Title: "track01.wav", Hash: "hash-wav"},
+		{Type: "audio", Title: "track01.mp3", Hash: "hash-mp3"},
+		{Type: "audio", Title: "voice.wav"}, // 无 hash，回退 key 为 path|title
+	}
+
+	analysis := AnalyzeFormats(tracks, "base")
+	wavKey := TrackKey(tracks[0].Hash, "base", tracks[0].Title)
+	voiceKey := TrackKey("", "base", "voice.wav")
+
+	t.Run("select only wav of conflict group", func(t *testing.T) {
+		result := analysis.ApplyFilter(&FilterStrategy{
+			Mode:           ModeFileManual,
+			SelectedHashes: map[string]bool{wavKey: true},
+		})
+		got := titlesOf(result)
+		want := []string{"track01.wav"}
+		if !equalStrings(got, want) {
+			t.Fatalf("file-manual only wav: got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("fallback key matches hashless file", func(t *testing.T) {
+		result := analysis.ApplyFilter(&FilterStrategy{
+			Mode:           ModeFileManual,
+			SelectedHashes: map[string]bool{voiceKey: true},
+		})
+		got := titlesOf(result)
+		want := []string{"voice.wav"}
+		if !equalStrings(got, want) {
+			t.Fatalf("file-manual fallback key: got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("unknown keys ignored without panic", func(t *testing.T) {
+		result := analysis.ApplyFilter(&FilterStrategy{
+			Mode:           ModeFileManual,
+			SelectedHashes: map[string]bool{"no-such-key": true},
+		})
+		if len(result) != 0 {
+			t.Fatalf("file-manual unknown key: got %v, want empty", titlesOf(result))
+		}
+	})
+}
+
 // 回归保护：未设置 OnlyFormats 时，无冲突场景应保持原行为（全部保留）。
 func TestApplyFilter_NoOnlyFormats_KeepsAllWhenNoConflict(t *testing.T) {
 	tracks := []track{

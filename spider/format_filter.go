@@ -5,6 +5,57 @@ import (
 	"strings"
 )
 
+// ModeFileManual 过滤策略分支：按用户选中的文件 key 集合精确筛选。
+const ModeFileManual = "file-manual"
+
+// NormalizeRJID 将任务标识归一化为纯数字 ID：去首尾空白，并不区分大小写剥掉一次 RJ 前缀。
+func NormalizeRJID(task string) string {
+	trimmed := strings.TrimSpace(task)
+	if len(trimmed) >= 2 && strings.EqualFold(trimmed[:2], "RJ") {
+		return trimmed[2:]
+	}
+	return trimmed
+}
+
+// TrackKey 生成文件的唯一标识：hash 非空时直接使用 hash，否则回退为 "path|title"。
+func TrackKey(hash, path, title string) string {
+	if hash != "" {
+		return hash
+	}
+	return path + "|" + title
+}
+
+// FormatStats 按扩展名统计的文件数量。
+type FormatStats struct {
+	Total int
+	Wav   int
+	Flac  int
+	Mp3   int
+	Aac   int
+	Other int
+}
+
+// CountByFormat 按 FileInfo.Path 的扩展名（小写）归类统计；
+// .wav/.flac/.mp3/.aac 之外的扩展名（含无扩展名）均计入 Other。
+func CountByFormat(files []*FileInfo) FormatStats {
+	stats := FormatStats{Total: len(files)}
+	for _, f := range files {
+		switch strings.ToLower(filepath.Ext(f.Path)) {
+		case ".wav":
+			stats.Wav++
+		case ".flac":
+			stats.Flac++
+		case ".mp3":
+			stats.Mp3++
+		case ".aac":
+			stats.Aac++
+		default:
+			stats.Other++
+		}
+	}
+	return stats
+}
+
 // ParseFormatList 解析逗号分隔的扩展名列表，统一转小写并补上点号前缀。
 // 例: "wav, MP3" -> [".wav", ".mp3"]。空项被忽略。
 func ParseFormatList(formatStr string) []string {
@@ -36,15 +87,15 @@ type FileInfo struct {
 // FormatGroup 同名不同格式的文件组
 type FormatGroup struct {
 	BaseName   string
-	Extensions []string     // 该组中的所有扩展名
-	Files      []*FileInfo  // 该组中的所有文件
+	Extensions []string    // 该组中的所有扩展名
+	Files      []*FileInfo // 该组中的所有文件
 }
 
 // FormatAnalysis 格式分析结果
 type FormatAnalysis struct {
-	AllFiles       []*FileInfo              // 所有文件
-	ConflictGroups map[string]*FormatGroup  // 有冲突的文件组 (key: baseName)
-	AllExtensions  map[string]int           // 所有扩展名及其出现次数
+	AllFiles       []*FileInfo             // 所有文件
+	ConflictGroups map[string]*FormatGroup // 有冲突的文件组 (key: baseName)
+	AllExtensions  map[string]int          // 所有扩展名及其出现次数
 }
 
 // AnalyzeFormats 分析所有文件的格式
@@ -133,15 +184,27 @@ func buildConflictGroups(files []*FileInfo) map[string]*FormatGroup {
 
 // FilterStrategy 过滤策略
 type FilterStrategy struct {
-	Mode              string              // "all", "priority", "manual"
-	PriorityFormats   []string            // 优先格式列表（优先级从高到低）
-	ManualSelections  map[string][]string // 手动选择: baseName -> 选中的扩展名列表
-	IncludeFormats    []string            // 额外包含的扩展名（冲突解决后追加下载）
-	OnlyFormats       []string            // 硬白名单：全局只保留这些扩展名（其余一律丢弃）
+	Mode             string              // "all", "priority", "manual", "file-manual"
+	PriorityFormats  []string            // 优先格式列表（优先级从高到低）
+	ManualSelections map[string][]string // 手动选择: baseName -> 选中的扩展名列表
+	IncludeFormats   []string            // 额外包含的扩展名（冲突解决后追加下载）
+	OnlyFormats      []string            // 硬白名单：全局只保留这些扩展名（其余一律丢弃）
+	SelectedHashes   map[string]bool     // file-manual 模式：选中的文件 key 集合（见 TrackKey）
 }
 
 // ApplyFilter 应用过滤策略
 func (analysis *FormatAnalysis) ApplyFilter(strategy *FilterStrategy) []*FileInfo {
+	// 0) file-manual 模式：完全按选中的 key 集合筛选，不与 OnlyFormats/冲突/Include 等策略叠加。
+	if strategy.Mode == ModeFileManual {
+		filtered := make([]*FileInfo, 0, len(strategy.SelectedHashes))
+		for _, file := range analysis.AllFiles {
+			if strategy.SelectedHashes[TrackKey(file.Track.Hash, file.Path, file.Track.Title)] {
+				filtered = append(filtered, file)
+			}
+		}
+		return filtered
+	}
+
 	// 候选集合：默认全部文件；冲突组：默认全局分析结果
 	candidateFiles := analysis.AllFiles
 	conflictGroups := analysis.ConflictGroups

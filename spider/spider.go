@@ -39,9 +39,9 @@ func InitSpider(cfg *config.Config) error {
 }
 
 type FailedTask struct {
-	URL       string
-	DirPath   string
-	FileName  string
+	URL        string
+	DirPath    string
+	FileName   string
 	RetryCount int
 }
 
@@ -144,9 +144,9 @@ func (ac *ASMRClient) AddFailedTask(url, dirPath, fileName string, retryCount in
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
 	ac.FailedTasks = append(ac.FailedTasks, FailedTask{
-		URL:       url,
-		DirPath:   dirPath,
-		FileName:  fileName,
+		URL:        url,
+		DirPath:    dirPath,
+		FileName:   fileName,
 		RetryCount: retryCount,
 	})
 }
