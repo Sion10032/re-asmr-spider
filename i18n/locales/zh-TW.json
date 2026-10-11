@@ -168,5 +168,7 @@
   "selection_no_selector": "RJ%s 需要手動選擇檔案但未提供選擇器，跳過該任務",
   "selection_cancelled": "已取消文件選擇，下載中止（已保存的選擇記錄保留）",
   "selection_task_skipped": "RJ%s 未選擇任何檔案，跳過該任務",
-  "selection_save_failed": "RJ%s 保存選擇記錄失敗: %v"
+  "selection_save_failed": "RJ%s 保存選擇記錄失敗: %v",
+  "cli_select_format_flags_ignored": "手動選擇模式下已忽略 -format-priority/-only-formats/-include-formats 參數",
+  "cli_reselect_without_select_ignored": "-reselect 僅在與 -select 搭配時生效，已忽略該參數"
 }

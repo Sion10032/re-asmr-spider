@@ -168,5 +168,7 @@
   "selection_no_selector": "RJ%s requires manual file selection but no selector was provided, skipping this task",
   "selection_cancelled": "File selection cancelled, download aborted (saved selection record kept)",
   "selection_task_skipped": "RJ%s no files selected, skipping this task",
-  "selection_save_failed": "RJ%s failed to save selection record: %v"
+  "selection_save_failed": "RJ%s failed to save selection record: %v",
+  "cli_select_format_flags_ignored": "Ignored -format-priority/-only-formats/-include-formats in manual selection mode",
+  "cli_reselect_without_select_ignored": "-reselect only takes effect together with -select; the flag has been ignored"
 }

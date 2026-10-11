@@ -168,5 +168,7 @@
   "selection_no_selector": "RJ%s 手動ファイル選択が必要ですがセレクターが提供されていません。このタスクをスキップします",
   "selection_cancelled": "ファイル選択がキャンセルされました。ダウンロードを中止します（保存された選択記録は保持されます）",
   "selection_task_skipped": "RJ%s ファイルが選択されていません。このタスクをスキップします",
-  "selection_save_failed": "RJ%s 選択記録の保存に失敗しました: %v"
+  "selection_save_failed": "RJ%s 選択記録の保存に失敗しました: %v",
+  "cli_select_format_flags_ignored": "手動選択モードでは -format-priority/-only-formats/-include-formats を無視しました",
+  "cli_reselect_without_select_ignored": "-reselect は -select と併用した場合のみ有効です。この引数は無視されました"
 }

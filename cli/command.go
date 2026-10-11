@@ -8,6 +8,7 @@ import (
 	"re-asmr-spider/config"
 	"re-asmr-spider/i18n"
 	"re-asmr-spider/spider"
+	"re-asmr-spider/ui"
 	"re-asmr-spider/utils"
 )
 
@@ -111,6 +112,22 @@ func (cmd *Command) Execute() {
 
 	utils.Infof("命令行模式: 准备下载 %d 个任务", len(tasks))
 	utils.Infof("RJ号: %s", strings.Join(tasks, ", "))
+
+	// -reselect 单独出现（无 -select）时无意义，打印警告后忽略，照常走原有下载流程
+	if cmd.Flags.Reselect && !cmd.Flags.SelectMode {
+		utils.Warning(i18n.T("cli_reselect_without_select_ignored"))
+	}
+
+	// 手动文件树选择模式：格式过滤参数不生效，打印警告后交给选择器处理
+	if cmd.Flags.SelectMode {
+		if cmd.Flags.FormatPriority != "" || cmd.Flags.OnlyFormats != "" || cmd.Flags.IncludeFormats != "" {
+			utils.Warning(i18n.T("cli_select_format_flags_ignored"))
+		}
+		// 委托交互层完成选择与下载（CLI 模式结束后直接退出，不等待回车）
+		ui.SelectAndDownload(cmd.App, tasks, cmd.Flags.Reselect, false)
+		// SelectAndDownload 内部失败路径会自行打印错误并中止，走到这里即视为流程结束
+		os.Exit(0)
+	}
 
 	// 构建格式过滤策略
 	var filterStrategy *spider.FilterStrategy
