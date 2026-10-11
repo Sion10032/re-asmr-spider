@@ -20,7 +20,19 @@ type DownloadOptions struct {
 	OnTimeout          func()                          // 超时回调
 	TimeoutDetected    chan bool                       // 超时检测通道
 	FormatFilter       *spider.FilterStrategy          // 格式过滤策略
+	TaskFilters        map[string]*spider.FilterStrategy // 每任务过滤策略（key 为 NormalizeRJID 结果），命中优先于 FormatFilter
 	OnFormatConflict   func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy // 格式冲突回调（带保存回调）
+}
+
+// filterForTask 选取指定任务的过滤策略：TaskFilters 按 NormalizeRJID 归一化后的 key 命中优先，
+// 否则回落到全局 FormatFilter（可能为 nil，原样返回）。
+func filterForTask(opts DownloadOptions, task string) *spider.FilterStrategy {
+	if opts.TaskFilters != nil {
+		if filter, ok := opts.TaskFilters[spider.NormalizeRJID(task)]; ok {
+			return filter
+		}
+	}
+	return opts.FormatFilter
 }
 
 // DownloadResult 下载结果
@@ -74,7 +86,7 @@ func (a *App) Download(opts DownloadOptions) *DownloadResult {
 
 	// 提交下载任务
 	for _, task := range opts.Tasks {
-		c.DownloadWithFilter(task, opts.FormatFilter, convertedCallback)
+		c.DownloadWithFilter(task, filterForTask(opts, task), convertedCallback)
 	}
 
 	// 等待任务完成
