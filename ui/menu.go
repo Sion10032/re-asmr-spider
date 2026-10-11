@@ -18,7 +18,14 @@ func RunInteractive(application *app.App) {
 	utils.Info(i18n.T("config_loaded"))
 
 	// 检查未完成的下载
-	application.CheckUnfinishedDownload(func(tasks []string, savedStrategy *config.FormatStrategy) {
+	application.CheckUnfinishedDownload(func(tasks []string, savedStrategy *config.FormatStrategy, selectionMode bool) {
+		// 手动文件树选择模式的续传：暂走记录沿用路径，OnSelect 留 nil，后续任务接入 TUI
+		if selectionMode {
+			utils.Info("手动文件树选择模式续传即将在后续任务接入，现沿用已保存的选择记录下载")
+			application.DownloadWithSelection(app.SelectionFlowOptions{Tasks: tasks, WaitForInput: true})
+			return
+		}
+
 		// 如果有保存的格式策略，询问用户是否使用
 		var baseFilter *spider.FilterStrategy
 		var formatCallback func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy

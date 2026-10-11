@@ -138,6 +138,35 @@ func (a *App) Download(opts DownloadOptions) *DownloadResult {
 	return result
 }
 
+// startTimeoutWatcher 启动下载无活动超时监控 goroutine。
+// 返回 stop 通道（close 即停止监控）与 timeout 通道（检测到超时时收到通知，带缓冲）。
+// 供 DownloadWithMonitorAndFormatSelector 与 DownloadWithSelection 共用。
+func startTimeoutWatcher() (stop chan bool, timeout chan bool) {
+	stop = make(chan bool)
+	timeout = make(chan bool, 1)
+
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if utils.GlobalMonitor.IsTimeout() {
+					inactiveTime := utils.GlobalMonitor.GetInactiveTime()
+					utils.Warning(i18n.T("timeout_detected", inactiveTime.Round(time.Second)))
+					timeout <- true
+					return
+				}
+			case <-stop:
+				return
+			}
+		}
+	}()
+
+	return stop, timeout
+}
+
 // 带超时监控和格式选择的下载。
 // baseFilter 为预先确定的全局过滤策略（如交互模式选择的 -only-formats 硬白名单），
 // 为 nil 时退回到原有的"按冲突逐个询问"流程，行为不变。
@@ -180,27 +209,7 @@ func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, baseFilter *s
 	// 使用循环而不是递归，避免栈溢出
 	for {
 		// 启动超时检测goroutine
-		stopMonitor := make(chan bool)
-		timeoutDetected := make(chan bool, 1)
-
-		go func() {
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ticker.C:
-					if utils.GlobalMonitor.IsTimeout() {
-						inactiveTime := utils.GlobalMonitor.GetInactiveTime()
-						utils.Warning(i18n.T("timeout_detected", inactiveTime.Round(time.Second)))
-						timeoutDetected <- true
-						return
-					}
-				case <-stopMonitor:
-					return
-				}
-			}
-		}()
+		stopMonitor, timeoutDetected := startTimeoutWatcher()
 
 		// 执行下载
 		opts := DownloadOptions{
@@ -242,8 +251,167 @@ func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, baseFilter *s
 	reader.ReadString('\n')
 }
 
+// SelectionFlowOptions 手动文件树选择模式的下载编排选项
+type SelectionFlowOptions struct {
+	Tasks        []string // RJ号列表
+	Reselect     bool     // 为 true 时忽略已有选择记录，强制重新选择
+	WaitForInput bool     // 完成后是否等待用户输入
+	// OnSelect 需要用户选择文件时回调：rjID 为归一化后的纯数字 ID，tree 为完整文件树，
+	// initialKeys 为重选时预勾选的 key 集（首次选择为 nil）；返回选中的 key 集与是否确认。
+	// 为 nil 时需要选择的任务将被跳过，仅沿用已有记录下载。
+	OnSelect func(rjID string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool)
+}
+
+// DownloadWithSelection 手动文件树选择模式的下载编排：
+// 保存选择模式状态 → 登录 → 逐任务沿用选择记录或回调选择并落盘 → 按每任务策略超时重试循环下载。
+func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
+	// 保存手动选择模式的下载状态（含 SelectionMode 标记）
+	if err := config.SaveDownloadStateForSelection(a.Config, opts.Tasks); err != nil {
+		utils.Error(i18n.T("save_download_state_failed", err))
+	}
+
+	// 创建客户端并登录
+	c := spider.NewASMRClient(
+		a.Config.MaxTask,
+		a.Config.MaxThread,
+		a.Config.MaxRetry,
+		a.Config.GetBufferSize(),
+	)
+	c.WorkerPool.Start()
+
+	if err := c.Login(); err != nil {
+		utils.Error(i18n.T("login_failed", err))
+		if err := config.ClearDownloadState(a.Config); err != nil {
+			utils.Error(i18n.T("clear_download_state_failed", err))
+		}
+		return
+	}
+
+	// 启动活动监控
+	utils.GlobalMonitor.Start()
+	defer utils.GlobalMonitor.Stop()
+
+	// 逐任务解析选择：沿用记录或回调选择，收齐每任务的过滤策略
+	strategies := make(map[string]*spider.FilterStrategy)
+	for _, task := range opts.Tasks {
+		id := spider.NormalizeRJID(task)
+		basePath := "downloads/RJ" + id
+
+		tracks, err := c.GetVoiceTracks(id)
+		if err != nil {
+			utils.Errorf("获取 RJ%s 文件列表失败，跳过该任务: %v", id, err)
+			continue
+		}
+		analysis := spider.AnalyzeFormats(tracks, basePath)
+
+		var keys []string
+		needSelect := true
+
+		// 读取选择记录；记录损坏时按无可用记录处理（警告后走选择路径）
+		rec, exists, err := spider.LoadSelection(basePath)
+		if err != nil {
+			utils.Warningf("RJ%s 选择记录读取失败，将按无记录处理: %v", id, err)
+		}
+
+		// 有记录且未强制重选：尝试沿用
+		if exists && !opts.Reselect {
+			matched, missing := spider.MatchSelection(rec, analysis)
+			if len(matched) > 0 {
+				utils.Infof("RJ%s 沿用已保存选择：命中 %d 个文件", id, len(matched))
+				if missing > 0 {
+					utils.Warningf("RJ%s 有 %d 个已选文件在当前文件树中不存在，仅下载命中的文件", id, missing)
+				}
+				for _, fi := range matched {
+					keys = append(keys, spider.TrackKey(fi.Track.Hash, fi.Path, fi.Track.Title))
+				}
+				needSelect = false
+			} else {
+				utils.Warningf("RJ%s 已保存选择与当前文件树不符，请重新选择", id)
+			}
+		}
+
+		if needSelect {
+			if opts.OnSelect == nil {
+				utils.Warningf("RJ%s 需要手动选择文件但未提供选择器，跳过该任务", id)
+				continue
+			}
+
+			// 重选时把上次记录的 key 集作为预勾选传入
+			var initialKeys map[string]bool
+			if opts.Reselect && exists && rec != nil {
+				initialKeys = make(map[string]bool, len(rec.Files))
+				for _, sf := range rec.Files {
+					initialKeys[sf.Key] = true
+				}
+			}
+
+			selectedKeys, confirmed := opts.OnSelect(id, tracks, initialKeys)
+			if !confirmed {
+				// 用户取消：中止整个流程；已保存的选择记录与下载状态保留，便于之后继续
+				utils.Info("已取消文件选择，下载中止（已保存的选择记录保留）")
+				return
+			}
+			if len(selectedKeys) == 0 {
+				utils.Warningf("RJ%s 未选择任何文件，跳过该任务", id)
+				continue
+			}
+
+			// 立即落盘选择记录，防后续流程中断丢选择
+			files := spider.FilesForKeys(analysis, selectedKeys)
+			if err := spider.SaveSelection(basePath, id, files); err != nil {
+				utils.Errorf("RJ%s 保存选择记录失败: %v", id, err)
+			}
+			for k := range selectedKeys {
+				keys = append(keys, k)
+			}
+		}
+
+		strategies[id] = spider.NewFileManualStrategy(keys)
+	}
+
+	// 超时重试循环：与 DownloadWithMonitorAndFormatSelector 同构
+	for {
+		// 启动超时检测goroutine
+		stopMonitor, timeoutDetected := startTimeoutWatcher()
+
+		// 执行下载
+		result := a.Download(DownloadOptions{
+			Tasks:           opts.Tasks,
+			ShowProgress:    true,
+			WaitForInput:    false,
+			TimeoutDetected: timeoutDetected,
+			TaskFilters:     strategies,
+		})
+
+		// 停止监控
+		close(stopMonitor)
+
+		// 如果检测到超时，重启下载（循环继续）
+		if result.TimedOut {
+			utils.Warning(i18n.T("download_interrupted"))
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		// 下载完成，跳出循环
+		break
+	}
+
+	// 清除下载状态
+	if err := config.ClearDownloadState(a.Config); err != nil {
+		utils.Error(i18n.T("clear_download_state_failed", err))
+	}
+
+	// 等待用户输入
+	if opts.WaitForInput {
+		utils.Info(i18n.T("press_enter_to_return"))
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+	}
+}
+
 // 检查并处理未完成的下载
-func (a *App) CheckUnfinishedDownload(onContinue func([]string, *config.FormatStrategy)) {
+func (a *App) CheckUnfinishedDownload(onContinue func(tasks []string, savedStrategy *config.FormatStrategy, selectionMode bool)) {
 	if a.Config.DownloadState.InProgress && len(a.Config.DownloadState.Tasks) > 0 {
 		utils.Warning(i18n.T("unfinished_download_detected"))
 		utils.Info(i18n.T("unfinished_tasks", strings.Join(a.Config.DownloadState.Tasks, ", ")))
@@ -261,7 +429,7 @@ func (a *App) CheckUnfinishedDownload(onContinue func([]string, *config.FormatSt
 		if choice == "y" || choice == "yes" {
 			utils.Info(i18n.T("continuing_download"))
 			if onContinue != nil {
-				onContinue(a.Config.DownloadState.Tasks, a.Config.DownloadState.FormatStrategy)
+				onContinue(a.Config.DownloadState.Tasks, a.Config.DownloadState.FormatStrategy, a.Config.DownloadState.SelectionMode)
 			}
 		} else {
 			utils.Info(i18n.T("download_cancelled"))
