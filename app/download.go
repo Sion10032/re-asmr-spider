@@ -299,7 +299,7 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
 
 		tracks, err := c.GetVoiceTracks(id)
 		if err != nil {
-			utils.Errorf("获取 RJ%s 文件列表失败，跳过该任务: %v", id, err)
+			utils.Error(i18n.T("selection_fetch_failed", id, err))
 			continue
 		}
 		analysis := spider.AnalyzeFormats(tracks, basePath)
@@ -310,29 +310,30 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
 		// 读取选择记录；记录损坏时按无可用记录处理（警告后走选择路径）
 		rec, exists, err := spider.LoadSelection(basePath)
 		if err != nil {
-			utils.Warningf("RJ%s 选择记录读取失败，将按无记录处理: %v", id, err)
+			utils.Warning(i18n.T("selection_record_read_failed", id, err))
 		}
 
 		// 有记录且未强制重选：尝试沿用
 		if exists && !opts.Reselect {
 			matched, missing := spider.MatchSelection(rec, analysis)
 			if len(matched) > 0 {
-				utils.Infof("RJ%s 沿用已保存选择：命中 %d 个文件", id, len(matched))
+				utils.Info(i18n.T("selection_reused", id, len(matched)))
+				utils.Info(i18n.T("selection_updated_hint"))
 				if missing > 0 {
-					utils.Warningf("RJ%s 有 %d 个已选文件在当前文件树中不存在，仅下载命中的文件", id, missing)
+					utils.Warning(i18n.T("selection_missing_warn", id, missing))
 				}
 				for _, fi := range matched {
 					keys = append(keys, spider.TrackKey(fi.Track.Hash, fi.Path, fi.Track.Title))
 				}
 				needSelect = false
 			} else {
-				utils.Warningf("RJ%s 已保存选择与当前文件树不符，请重新选择", id)
+				utils.Warning(i18n.T("selection_stale", id))
 			}
 		}
 
 		if needSelect {
 			if opts.OnSelect == nil {
-				utils.Warningf("RJ%s 需要手动选择文件但未提供选择器，跳过该任务", id)
+				utils.Warning(i18n.T("selection_no_selector", id))
 				continue
 			}
 
@@ -348,18 +349,18 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
 			selectedKeys, confirmed := opts.OnSelect(id, tracks, initialKeys)
 			if !confirmed {
 				// 用户取消：中止整个流程；已保存的选择记录与下载状态保留，便于之后继续
-				utils.Info("已取消文件选择，下载中止（已保存的选择记录保留）")
+				utils.Info(i18n.T("selection_cancelled"))
 				return
 			}
 			if len(selectedKeys) == 0 {
-				utils.Warningf("RJ%s 未选择任何文件，跳过该任务", id)
+				utils.Warning(i18n.T("selection_task_skipped", id))
 				continue
 			}
 
 			// 立即落盘选择记录，防后续流程中断丢选择
 			files := spider.FilesForKeys(analysis, selectedKeys)
 			if err := spider.SaveSelection(basePath, id, files); err != nil {
-				utils.Errorf("RJ%s 保存选择记录失败: %v", id, err)
+				utils.Error(i18n.T("selection_save_failed", id, err))
 			}
 			for k := range selectedKeys {
 				keys = append(keys, k)

@@ -3,9 +3,10 @@
   "config_loaded": "配置文件已加載",
   "main_menu": "主菜單",
   "menu_start_download": "1. 開始下載",
-  "menu_modify_config": "2. 修改配置",
-  "menu_about": "3. 關於",
-  "menu_language": "4. 切換語言",
+  "menu_select_download": "2. 手動選擇下載",
+  "menu_modify_config": "3. 修改配置",
+  "menu_about": "4. 關於",
+  "menu_language": "5. 切換語言",
   "menu_exit": "0. 退出",
   "prompt_choose_operation": "請選擇操作",
   "goodbye": "感謝使用，再見！",
@@ -146,5 +147,26 @@
   "only_formats_applied": "只下載以下格式: %s",
   "include_formats_applied": "額外下載以下格式: %s",
   "format_filter_prompt": "只下載特定格式？(留空=全部並按需處理衝突；例: wav 或 wav,flac)",
-  "format_filter_include_prompt": "額外保留哪些檔案？(留空=不額外保留；例: jpg,lrc 保留封面和字幕)"
+  "format_filter_include_prompt": "額外保留哪些檔案？(留空=不額外保留；例: jpg,lrc 保留封面和字幕)",
+
+  "select_download_title": "=== 手動選擇下載 ===",
+  "select_download_input_hint": "請輸入要手動選擇下載的音聲 RJ 號（多個用空格分開），如: RJ373001",
+
+  "tui_loading": "正在加載文件樹選擇器...",
+  "tui_header_stats": "已選 %d | wav:%d flac:%d mp3:%d aac:%d 其它:%d | 共 %d 檔案",
+  "tui_help_line": "↑/↓/j/k 移動  空格 勾選  回車/→ 展開 ← 摺疊  a 全選  n 全不選  PgUp/PgDn 滾動  q 確認  Esc 取消",
+  "tui_selected_all": "已全選",
+  "tui_selected_none": "已全不選",
+  "tui_none_selected": "未選擇任何檔案",
+
+  "selection_reused": "RJ%s 沿用已保存選擇：%d 個檔案",
+  "selection_updated_hint": "已沿用記錄；重新選擇請用 -reselect 或刪除 .selection.json",
+  "selection_missing_warn": "RJ%s 有 %d 個已選檔案在當前文件樹中不存在，僅下載命中的檔案",
+  "selection_stale": "RJ%s 已保存選擇與當前文件樹不符，請重新選擇",
+  "selection_record_read_failed": "RJ%s 選擇記錄讀取失敗，將按無記錄處理: %v",
+  "selection_fetch_failed": "獲取 RJ%s 文件列表失敗，跳過該任務: %v",
+  "selection_no_selector": "RJ%s 需要手動選擇檔案但未提供選擇器，跳過該任務",
+  "selection_cancelled": "已取消文件選擇，下載中止（已保存的選擇記錄保留）",
+  "selection_task_skipped": "RJ%s 未選擇任何檔案，跳過該任務",
+  "selection_save_failed": "RJ%s 保存選擇記錄失敗: %v"
 }

@@ -3,9 +3,10 @@
   "config_loaded": "Configuration loaded",
   "main_menu": "Main Menu",
   "menu_start_download": "1. Start Download",
-  "menu_modify_config": "2. Modify Configuration",
-  "menu_about": "3. About",
-  "menu_language": "4. Switch Language",
+  "menu_select_download": "2. Manual Select Download",
+  "menu_modify_config": "3. Modify Configuration",
+  "menu_about": "4. About",
+  "menu_language": "5. Switch Language",
   "menu_exit": "0. Exit",
   "prompt_choose_operation": "Please choose an operation",
   "goodbye": "Thank you for using, goodbye!",
@@ -146,5 +147,26 @@
   "only_formats_applied": "Only downloading these formats: %s",
   "include_formats_applied": "Additionally downloading these formats: %s",
   "format_filter_prompt": "Download only specific formats? (blank = keep all and resolve conflicts as usual; e.g. wav or wav,flac)",
-  "format_filter_include_prompt": "Also keep which extra files? (blank = none; e.g. jpg,lrc for cover & subtitles)"
+  "format_filter_include_prompt": "Also keep which extra files? (blank = none; e.g. jpg,lrc for cover & subtitles)",
+
+  "select_download_title": "=== Manual Select Download ===",
+  "select_download_input_hint": "Enter the RJ number of the audio work to select files manually (separate multiple with spaces), e.g.: RJ373001",
+
+  "tui_loading": "Loading file tree selector...",
+  "tui_header_stats": "Selected %d | wav:%d flac:%d mp3:%d aac:%d other:%d | %d files total",
+  "tui_help_line": "↑/↓/j/k move  Space toggle  Enter/→ expand ← collapse  a select all  n select none  PgUp/PgDn scroll  q confirm  Esc cancel",
+  "tui_selected_all": "All files selected",
+  "tui_selected_none": "All files deselected",
+  "tui_none_selected": "No files selected",
+
+  "selection_reused": "RJ%s reusing saved selection: %d files",
+  "selection_updated_hint": "Reusing saved selection; use -reselect or delete .selection.json to select again",
+  "selection_missing_warn": "RJ%s: %d selected files no longer exist in the current file tree, only matching files will be downloaded",
+  "selection_stale": "RJ%s saved selection does not match the current file tree, please select again",
+  "selection_record_read_failed": "RJ%s failed to read selection record, treating as no record: %v",
+  "selection_fetch_failed": "Failed to fetch file list for RJ%s, skipping this task: %v",
+  "selection_no_selector": "RJ%s requires manual file selection but no selector was provided, skipping this task",
+  "selection_cancelled": "File selection cancelled, download aborted (saved selection record kept)",
+  "selection_task_skipped": "RJ%s no files selected, skipping this task",
+  "selection_save_failed": "RJ%s failed to save selection record: %v"
 }

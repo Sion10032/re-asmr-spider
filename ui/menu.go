@@ -19,10 +19,9 @@ func RunInteractive(application *app.App) {
 
 	// 检查未完成的下载
 	application.CheckUnfinishedDownload(func(tasks []string, savedStrategy *config.FormatStrategy, selectionMode bool) {
-		// 手动文件树选择模式的续传：暂走记录沿用路径，OnSelect 留 nil，后续任务接入 TUI
+		// 手动文件树选择模式的续传：走带 TUI 选择器的下载编排
 		if selectionMode {
-			utils.Info("手动文件树选择模式续传即将在后续任务接入，现沿用已保存的选择记录下载")
-			application.DownloadWithSelection(app.SelectionFlowOptions{Tasks: tasks, WaitForInput: true})
+			SelectAndDownload(application, tasks, false, true)
 			return
 		}
 
@@ -81,10 +80,12 @@ func RunInteractive(application *app.App) {
 		case "1":
 			StartDownload(application)
 		case "2":
-			ModifyConfig(application)
+			StartSelectDownload(application)
 		case "3":
-			ShowAbout()
+			ModifyConfig(application)
 		case "4":
+			ShowAbout()
+		case "5":
 			ChangeLanguage(application)
 		case "0":
 			utils.Info(i18n.T("goodbye"))
@@ -101,6 +102,7 @@ func showMainMenu() {
 	utils.Info(i18n.T("main_menu"))
 	utils.Info(strings.Repeat("=", 50))
 	utils.Info("  " + i18n.T("menu_start_download"))
+	utils.Info("  " + i18n.T("menu_select_download"))
 	utils.Info("  " + i18n.T("menu_modify_config"))
 	utils.Info("  " + i18n.T("menu_about"))
 	utils.Info("  " + i18n.T("menu_language") + " / Language")

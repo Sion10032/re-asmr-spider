@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
 
+	"re-asmr-spider/i18n"
 	"re-asmr-spider/spider"
 )
 
@@ -306,12 +307,12 @@ func (m *treeSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for _, r := range m.roots {
 				setSubtreeSelected(m.selected, r, true)
 			}
-			m.statusMsg = "已全选"
+			m.statusMsg = i18n.T("tui_selected_all")
 		case "n":
 			for _, r := range m.roots {
 				setSubtreeSelected(m.selected, r, false)
 			}
-			m.statusMsg = "已全不选"
+			m.statusMsg = i18n.T("tui_selected_none")
 		case "pgup":
 			m.cursor = pageCursor(m.cursor, -m.listHeight(), len(m.flat))
 			m.syncOffset()
@@ -320,7 +321,7 @@ func (m *treeSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.syncOffset()
 		case "q":
 			if m.totalSelected() == 0 {
-				m.statusMsg = "未选择任何文件"
+				m.statusMsg = i18n.T("tui_none_selected")
 				return m, nil
 			}
 			m.confirmed = true
@@ -352,15 +353,14 @@ func truncateWidth(s string, max int) string {
 // View 渲染整屏：顶部固定 RJ 号与统计行，中部可视区滚动列表，底部状态与按键提示
 func (m *treeSelectorModel) View() string {
 	if m.width == 0 || m.height == 0 {
-		return "正在加载文件树选择器..."
+		return i18n.T("tui_loading")
 	}
 
 	listH := m.listHeight()
 
 	stats := spider.CountByFormat(m.fileInfos)
 	header := fmt.Sprintf("RJ%s", m.rjID)
-	statsLine := fmt.Sprintf("已选 %d | wav:%d flac:%d mp3:%d aac:%d 其它:%d | 共 %d 文件",
-		m.totalSelected(), stats.Wav, stats.Flac, stats.Mp3, stats.Aac, stats.Other, stats.Total)
+	statsLine := i18n.T("tui_header_stats", m.totalSelected(), stats.Wav, stats.Flac, stats.Mp3, stats.Aac, stats.Other, stats.Total)
 
 	var b strings.Builder
 	b.WriteString(truncateWidth(header, m.width))
@@ -414,7 +414,7 @@ func (m *treeSelectorModel) View() string {
 	b.WriteString(truncateWidth(status, m.width))
 	b.WriteString("\n")
 
-	hints := "↑/↓/j/k 移动  空格 勾选  回车/→ 展开 ← 折叠  a 全选  n 全不选  PgUp/PgDn 滚动  q 确认  Esc 取消"
+	hints := i18n.T("tui_help_line")
 	b.WriteString(truncateWidth(hints, m.width))
 	return b.String()
 }
