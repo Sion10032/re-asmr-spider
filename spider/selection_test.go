@@ -10,7 +10,7 @@ import (
 // makeTestFile 构造测试用 FileInfo；hash 为空时 TrackKey 会回退到 path|title。
 func makeTestFile(hash, path, title string) *FileInfo {
 	return &FileInfo{
-		Track: &track{Hash: hash, Title: title},
+		Track: &Track{Hash: hash, Title: title},
 		Path:  path,
 	}
 }

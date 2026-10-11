@@ -78,7 +78,7 @@ func ParseFormatList(formatStr string) []string {
 
 // FileInfo 文件信息
 type FileInfo struct {
-	Track     *track
+	Track     *Track
 	Path      string
 	BaseName  string // 不含扩展名的文件名
 	Extension string // 扩展名（含点号，如 .mp3）
@@ -99,7 +99,7 @@ type FormatAnalysis struct {
 }
 
 // AnalyzeFormats 分析所有文件的格式
-func AnalyzeFormats(tracks []track, basePath string) *FormatAnalysis {
+func AnalyzeFormats(tracks []Track, basePath string) *FormatAnalysis {
 	analysis := &FormatAnalysis{
 		AllFiles:       make([]*FileInfo, 0),
 		ConflictGroups: make(map[string]*FormatGroup),
@@ -113,7 +113,7 @@ func AnalyzeFormats(tracks []track, basePath string) *FormatAnalysis {
 }
 
 // collectFiles 递归收集所有文件信息
-func collectFiles(tracks []track, currentPath string, analysis *FormatAnalysis) {
+func collectFiles(tracks []Track, currentPath string, analysis *FormatAnalysis) {
 	for i := range tracks {
 		t := &tracks[i]
 		if t.Type != "folder" {

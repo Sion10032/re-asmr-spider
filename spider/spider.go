@@ -55,10 +55,10 @@ type ASMRClient struct {
 	mu            sync.Mutex
 }
 
-type track struct {
+type Track struct {
 	Type             string  `json:"type"`
 	Title            string  `json:"title"`
-	Children         []track `json:"children,omitempty"`
+	Children         []Track `json:"children,omitempty"`
 	Hash             string  `json:"hash,omitempty"`
 	WorkTitle        string  `json:"workTitle,omitempty"`
 	MediaStreamURL   string  `json:"mediaStreamUrl,omitempty"`
@@ -112,7 +112,7 @@ func (ac *ASMRClient) Login() error {
 	return nil
 }
 
-func (ac *ASMRClient) GetVoiceTracks(id string) ([]track, error) {
+func (ac *ASMRClient) GetVoiceTracks(id string) ([]Track, error) {
 	utils.GlobalMonitor.UpdateActivity()
 
 	client := utils.Client.Get().(*http.Client)
@@ -133,7 +133,7 @@ func (ac *ASMRClient) GetVoiceTracks(id string) ([]track, error) {
 		utils.Error(i18n.T("request_failed", err))
 		return nil, err
 	}
-	res := make([]track, 0)
+	res := make([]Track, 0)
 	err = json.Unmarshal(all, &res)
 	utils.GlobalMonitor.UpdateActivity()
 	return res, nil
@@ -213,7 +213,7 @@ func (ac *ASMRClient) DownloadWithFilter(id string, strategy *FilterStrategy, on
 	}
 
 	// 应用过滤策略
-	var filteredTracks []track
+	var filteredTracks []Track
 	if strategy != nil {
 		filteredFiles := analysis.ApplyFilter(strategy)
 		// 重建track列表（保持层次结构）
@@ -227,8 +227,8 @@ func (ac *ASMRClient) DownloadWithFilter(id string, strategy *FilterStrategy, on
 }
 
 // rebuildTracksWithFilter 根据过滤后的文件列表重建track结构
-func (ac *ASMRClient) rebuildTracksWithFilter(tracks []track, currentPath string, filteredFiles []*FileInfo) []track {
-	result := make([]track, 0)
+func (ac *ASMRClient) rebuildTracksWithFilter(tracks []Track, currentPath string, filteredFiles []*FileInfo) []Track {
+	result := make([]Track, 0)
 
 	for _, t := range tracks {
 		if t.Type != "folder" {
@@ -307,7 +307,7 @@ func (ac *ASMRClient) downloadFile(url string, dirPath string, fileName string, 
 	ac.WorkerPool.Submit(downloader)
 }
 
-func (ac *ASMRClient) EnsureDir(tracks []track, basePath string) {
+func (ac *ASMRClient) EnsureDir(tracks []Track, basePath string) {
 	path := basePath
 	_ = os.MkdirAll(path, os.ModePerm)
 	for _, t := range tracks {
