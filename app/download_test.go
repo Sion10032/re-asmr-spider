@@ -25,10 +25,10 @@ func TestFilterForTask(t *testing.T) {
 			expect: globalFilter,
 		},
 		{
-			name: "命中TaskFilters策略",
+			name: "命中TaskFilters策略（key 为任务输入原串）",
 			opts: DownloadOptions{
 				FormatFilter: globalFilter,
-				TaskFilters:  map[string]*spider.FilterStrategy{"123456": taskFilter},
+				TaskFilters:  map[string]*spider.FilterStrategy{"RJ123456": taskFilter},
 			},
 			task:   "RJ123456",
 			expect: taskFilter,
@@ -37,7 +37,7 @@ func TestFilterForTask(t *testing.T) {
 			name: "TaskFilters无此任务时回落FormatFilter",
 			opts: DownloadOptions{
 				FormatFilter: globalFilter,
-				TaskFilters:  map[string]*spider.FilterStrategy{"654321": taskFilter},
+				TaskFilters:  map[string]*spider.FilterStrategy{"VJ654321": taskFilter},
 			},
 			task:   "RJ123456",
 			expect: globalFilter,

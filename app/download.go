@@ -14,21 +14,21 @@ import (
 
 // DownloadOptions 下载选项
 type DownloadOptions struct {
-	Tasks              []string                        // RJ号列表
-	ShowProgress       bool                            // 是否显示进度信息
-	WaitForInput       bool                            // 完成后是否等待用户输入
-	OnTimeout          func()                          // 超时回调
-	TimeoutDetected    chan bool                       // 超时检测通道
-	FormatFilter       *spider.FilterStrategy          // 格式过滤策略
-	TaskFilters        map[string]*spider.FilterStrategy // 每任务过滤策略（key 为 NormalizeRJID 结果），命中优先于 FormatFilter
-	OnFormatConflict   func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy // 格式冲突回调（带保存回调）
+	Tasks            []string                                                                          // 作品号列表（RJ/VJ 等，按输入原样使用）
+	ShowProgress     bool                                                                              // 是否显示进度信息
+	WaitForInput     bool                                                                              // 完成后是否等待用户输入
+	OnTimeout        func()                                                                            // 超时回调
+	TimeoutDetected  chan bool                                                                         // 超时检测通道
+	FormatFilter     *spider.FilterStrategy                                                            // 格式过滤策略
+	TaskFilters      map[string]*spider.FilterStrategy                                                 // 每任务过滤策略（key 为任务输入原串），命中优先于 FormatFilter
+	OnFormatConflict func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy // 格式冲突回调（带保存回调）
 }
 
-// filterForTask 选取指定任务的过滤策略：TaskFilters 按 NormalizeRJID 归一化后的 key 命中优先，
+// filterForTask 选取指定任务的过滤策略：TaskFilters 按任务输入原串精确命中优先，
 // 否则回落到全局 FormatFilter（可能为 nil，原样返回）。
 func filterForTask(opts DownloadOptions, task string) *spider.FilterStrategy {
 	if opts.TaskFilters != nil {
-		if filter, ok := opts.TaskFilters[spider.NormalizeRJID(task)]; ok {
+		if filter, ok := opts.TaskFilters[task]; ok {
 			return filter
 		}
 	}
@@ -37,9 +37,9 @@ func filterForTask(opts DownloadOptions, task string) *spider.FilterStrategy {
 
 // DownloadResult 下载结果
 type DownloadResult struct {
-	Success      bool
-	FailedTasks  []spider.FailedTask
-	TimedOut     bool
+	Success     bool
+	FailedTasks []spider.FailedTask
+	TimedOut    bool
 }
 
 // Download 执行下载任务 (CLI和UI共用的核心逻辑)
@@ -125,7 +125,7 @@ func (a *App) Download(opts DownloadOptions) *DownloadResult {
 	// 显示结果
 	if result.Success && opts.ShowProgress {
 		if len(result.FailedTasks) > 0 {
-			utils.Error( i18n.T("download_failed_count", len(result.FailedTasks)))
+			utils.Error(i18n.T("download_failed_count", len(result.FailedTasks)))
 			utils.Info(i18n.T("failed_files_list"))
 			for _, task := range result.FailedTasks {
 				utils.Errorf("  - %s", task.FileName)
@@ -253,18 +253,21 @@ func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, baseFilter *s
 
 // SelectionFlowOptions 手动文件树选择模式的下载编排选项
 type SelectionFlowOptions struct {
-	Tasks        []string // RJ号列表
+	Tasks        []string // 作品号列表（RJ/VJ 等，按输入原样使用）
 	Reselect     bool     // 为 true 时忽略已有选择记录，强制重新选择
 	WaitForInput bool     // 完成后是否等待用户输入
-	// OnSelect 需要用户选择文件时回调：rjID 为归一化后的纯数字 ID，tree 为完整文件树，
+	// OnSelect 需要用户选择文件时回调：rjID 为归一化后的纯数字 ID，basePath 为作品下载根目录
+	// （"downloads/"+任务输入原串，与 spider 侧文件路径前缀一致，用于回退 key 计算），tree 为完整文件树，
 	// initialKeys 为重选时预勾选的 key 集（首次选择为 nil）；返回选中的 key 集与是否确认。
 	// 为 nil 时需要选择的任务将被跳过，仅沿用已有记录下载。
-	OnSelect func(rjID string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool)
+	OnSelect func(rjID string, basePath string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool)
 }
 
 // DownloadWithSelection 手动文件树选择模式的下载编排：
 // 保存选择模式状态 → 登录 → 逐任务沿用选择记录或回调选择并落盘 → 按每任务策略超时重试循环下载。
-func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
+// 返回整个流程是否成功：登录失败、用户中止或全部任务被跳过时为 false；
+// 下载完成后与现有 CLI 下载路径口径一致（无失败文件视为成功）。
+func (a *App) DownloadWithSelection(opts SelectionFlowOptions) bool {
 	// 保存手动选择模式的下载状态（含 SelectionMode 标记）
 	if err := config.SaveDownloadStateForSelection(a.Config, opts.Tasks); err != nil {
 		utils.Error(i18n.T("save_download_state_failed", err))
@@ -284,18 +287,20 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
 		if err := config.ClearDownloadState(a.Config); err != nil {
 			utils.Error(i18n.T("clear_download_state_failed", err))
 		}
-		return
+		return false
 	}
 
 	// 启动活动监控
 	utils.GlobalMonitor.Start()
 	defer utils.GlobalMonitor.Stop()
 
-	// 逐任务解析选择：沿用记录或回调选择，收齐每任务的过滤策略
+	// 逐任务解析选择：沿用记录或回调选择，收齐每任务的过滤策略。
+	// 仅成功建立策略的任务才会进入下载循环，避免被跳过的任务回落全局策略后全量下载。
 	strategies := make(map[string]*spider.FilterStrategy)
+	selectedTasks := make([]string, 0, len(opts.Tasks))
 	for _, task := range opts.Tasks {
-		id := spider.NormalizeRJID(task)
-		basePath := "downloads/RJ" + id
+		id := task
+		basePath := "downloads/" + id
 
 		tracks, err := c.GetVoiceTracks(id)
 		if err != nil {
@@ -346,11 +351,11 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
 				}
 			}
 
-			selectedKeys, confirmed := opts.OnSelect(id, tracks, initialKeys)
+			selectedKeys, confirmed := opts.OnSelect(id, basePath, tracks, initialKeys)
 			if !confirmed {
 				// 用户取消：中止整个流程；已保存的选择记录与下载状态保留，便于之后继续
 				utils.Info(i18n.T("selection_cancelled"))
-				return
+				return false
 			}
 			if len(selectedKeys) == 0 {
 				utils.Warning(i18n.T("selection_task_skipped", id))
@@ -368,34 +373,44 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
 		}
 
 		strategies[id] = spider.NewFileManualStrategy(keys)
+		selectedTasks = append(selectedTasks, task)
 	}
 
-	// 超时重试循环：与 DownloadWithMonitorAndFormatSelector 同构
-	for {
-		// 启动超时检测goroutine
-		stopMonitor, timeoutDetected := startTimeoutWatcher()
+	// 与现有 CLI 下载路径口径一致：无失败文件视为成功；全部任务被跳过时未发生下载，视为失败
+	success := false
 
-		// 执行下载
-		result := a.Download(DownloadOptions{
-			Tasks:           opts.Tasks,
-			ShowProgress:    true,
-			WaitForInput:    false,
-			TimeoutDetected: timeoutDetected,
-			TaskFilters:     strategies,
-		})
+	// 超时重试循环：与 DownloadWithMonitorAndFormatSelector 同构；
+	// 全部任务被跳过（获取文件树失败/无选择器/未选中文件）时不进入下载循环，直接走收尾
+	if len(selectedTasks) > 0 {
+		var result *DownloadResult
+		for {
+			// 启动超时检测goroutine
+			stopMonitor, timeoutDetected := startTimeoutWatcher()
 
-		// 停止监控
-		close(stopMonitor)
+			// 执行下载（仅含成功建立策略的任务）
+			result = a.Download(DownloadOptions{
+				Tasks:           selectedTasks,
+				ShowProgress:    true,
+				WaitForInput:    false,
+				TimeoutDetected: timeoutDetected,
+				TaskFilters:     strategies,
+			})
 
-		// 如果检测到超时，重启下载（循环继续）
-		if result.TimedOut {
-			utils.Warning(i18n.T("download_interrupted"))
-			time.Sleep(2 * time.Second)
-			continue
+			// 停止监控
+			close(stopMonitor)
+
+			// 如果检测到超时，重启下载（循环继续）
+			if result.TimedOut {
+				utils.Warning(i18n.T("download_interrupted"))
+				time.Sleep(2 * time.Second)
+				continue
+			}
+
+			// 下载完成，跳出循环
+			break
 		}
 
-		// 下载完成，跳出循环
-		break
+		success = result.Success && len(result.FailedTasks) == 0
 	}
 
 	// 清除下载状态
@@ -409,6 +424,8 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) {
 		reader := bufio.NewReader(os.Stdin)
 		reader.ReadString('\n')
 	}
+
+	return success
 }
 
 // 检查并处理未完成的下载

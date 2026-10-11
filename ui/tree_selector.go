@@ -165,7 +165,7 @@ type flatRow struct {
 
 // treeSelectorModel 文件树勾选器的 bubbletea 模型
 type treeSelectorModel struct {
-	rjID      string
+	workID    string
 	roots     []*selectorNode
 	flat      []flatRow
 	depths    map[*selectorNode]int
@@ -181,16 +181,16 @@ type treeSelectorModel struct {
 	statusMsg string
 }
 
-// newTreeSelectorModel 构造初始模型
-func newTreeSelectorModel(rjID string, tree []spider.Track, initialKeys map[string]bool) *treeSelectorModel {
-	roots := buildNodes(tree, "")
+// newTreeSelectorModel 构造初始模型；basePath 为作品下载根目录，与 spider 侧共同参与 key 计算
+func newTreeSelectorModel(workID string, basePath string, tree []spider.Track, initialKeys map[string]bool) *treeSelectorModel {
+	roots := buildNodes(tree, basePath)
 	m := &treeSelectorModel{
-		rjID:      rjID,
+		workID:    workID,
 		roots:     roots,
 		depths:    make(map[*selectorNode]int),
 		selected:  initSelectedKeys(roots, initialKeys),
 		expanded:  make(map[string]bool),
-		fileInfos: collectFileInfos(tree, ""),
+		fileInfos: collectFileInfos(tree, basePath),
 	}
 	m.refreshFlat()
 	return m
@@ -350,7 +350,7 @@ func truncateWidth(s string, max int) string {
 	return runewidth.Truncate(s, max, "…")
 }
 
-// View 渲染整屏：顶部固定 RJ 号与统计行，中部可视区滚动列表，底部状态与按键提示
+// View 渲染整屏：顶部固定作品号与统计行，中部可视区滚动列表，底部状态与按键提示
 func (m *treeSelectorModel) View() string {
 	if m.width == 0 || m.height == 0 {
 		return i18n.T("tui_loading")
@@ -359,7 +359,7 @@ func (m *treeSelectorModel) View() string {
 	listH := m.listHeight()
 
 	stats := spider.CountByFormat(m.fileInfos)
-	header := fmt.Sprintf("RJ%s", m.rjID)
+	header := m.workID
 	statsLine := i18n.T("tui_header_stats", m.totalSelected(), stats.Wav, stats.Flac, stats.Mp3, stats.Aac, stats.Other, stats.Total)
 
 	var b strings.Builder
@@ -420,10 +420,12 @@ func (m *treeSelectorModel) View() string {
 }
 
 // RunTreeSelector 启动全屏文件树勾选器。
+// basePath 为作品下载根目录（"downloads/"+作品号输入原样），必须与 spider 侧收集文件路径时使用的
+// 前缀一致，否则无 hash 文件的回退 key（path|title）两端对不上。
 // initialKeys 非 nil 时初始选中恰为该集合，nil 时全选；
 // confirmed=false 表示 Esc 取消，此时 selectedKeys 返回 nil。
-func RunTreeSelector(rjID string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool) {
-	model := newTreeSelectorModel(rjID, tree, initialKeys)
+func RunTreeSelector(workID string, basePath string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool) {
+	model := newTreeSelectorModel(workID, basePath, tree, initialKeys)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	finalModel, err := p.Run()
 	if err != nil {

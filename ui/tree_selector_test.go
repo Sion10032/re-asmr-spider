@@ -114,7 +114,7 @@ func TestBuildNodes(t *testing.T) {
 }
 
 func TestToggleNode(t *testing.T) {
-	nodes := buildNodes(buildTestTree(), "")
+	nodes := buildNodes(buildTestTree(), "base")
 	folderA := nodes[0]
 
 	tests := []struct {
@@ -140,9 +140,9 @@ func TestToggleNode(t *testing.T) {
 			target:  folderA,
 			initial: map[string]bool{},
 			want: map[string]bool{
-				spider.TrackKey("h1", filepath.Join("", "文件夹A"), "01.wav"):         true,
-				spider.TrackKey("h2", filepath.Join("", "文件夹A", "子目录"), "02.mp3"):  true,
-				spider.TrackKey("h3", filepath.Join("", "文件夹A", "子目录"), "03.flac"): true,
+				spider.TrackKey("h1", filepath.Join("base", "文件夹A"), "01.wav"):         true,
+				spider.TrackKey("h2", filepath.Join("base", "文件夹A", "子目录"), "02.mp3"):  true,
+				spider.TrackKey("h3", filepath.Join("base", "文件夹A", "子目录"), "03.flac"): true,
 			},
 		},
 		{
@@ -150,8 +150,8 @@ func TestToggleNode(t *testing.T) {
 			target:  folderA,
 			initial: leafKeysOf(nodes),
 			want: map[string]bool{ // 仅根级叶子保持
-				spider.TrackKey("", "", "no-hash.txt"): true,
-				"h4":                                   true,
+				spider.TrackKey("", "base", "no-hash.txt"): true,
+				"h4": true,
 			},
 		},
 		{
@@ -160,8 +160,8 @@ func TestToggleNode(t *testing.T) {
 			initial: map[string]bool{"h1": true},
 			want: map[string]bool{
 				"h1": true,
-				spider.TrackKey("h2", filepath.Join("", "文件夹A", "子目录"), "02.mp3"):  true,
-				spider.TrackKey("h3", filepath.Join("", "文件夹A", "子目录"), "03.flac"): true,
+				spider.TrackKey("h2", filepath.Join("base", "文件夹A", "子目录"), "02.mp3"):  true,
+				spider.TrackKey("h3", filepath.Join("base", "文件夹A", "子目录"), "03.flac"): true,
 			},
 		},
 	}
@@ -187,7 +187,7 @@ func TestToggleNode(t *testing.T) {
 }
 
 func TestCountNode(t *testing.T) {
-	nodes := buildNodes(buildTestTree(), "")
+	nodes := buildNodes(buildTestTree(), "base")
 	folderA := nodes[0]
 	sub := folderA.Children[1]
 	wav := folderA.Children[0]
@@ -360,7 +360,7 @@ func TestTruncateWidthCapped(t *testing.T) {
 }
 
 func TestInitialKeys(t *testing.T) {
-	nodes := buildNodes(buildTestTree(), "")
+	nodes := buildNodes(buildTestTree(), "base")
 	allLeafKeys := leafKeysOf(nodes)
 
 	tests := []struct {
@@ -397,5 +397,63 @@ func TestInitialKeys(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestBuildNodesKeysMatchSpiderAnalysis 跨层一致性：ui 侧 buildNodes（带 basePath）生成的 key
+// 必须能被 spider 侧 AnalyzeFormats/FilesForKeys 精确命中。
+// 覆盖 hash 文件与无 hash 回退（path|title）文件——防止两端回退口径再次分叉
+// （本缺陷逃逸的根因即两端测试各自用 TrackKey 却实参不同）。
+func TestBuildNodesKeysMatchSpiderAnalysis(t *testing.T) {
+	const basePath = "downloads/RJ123456"
+	tree := buildTestTree()
+	nodes := buildNodes(tree, basePath)
+	analysis := spider.AnalyzeFormats(tree, basePath)
+
+	// pickFile 构造仅勾选单个叶子的 key 集合
+	pickFile := func(n *selectorNode) map[string]bool {
+		return map[string]bool{n.Key: true}
+	}
+
+	tests := []struct {
+		name       string
+		keys       map[string]bool
+		wantTitles []string
+	}{
+		{
+			name:       "根级无hash文件-回退key两端一致",
+			keys:       pickFile(nodes[1]),
+			wantTitles: []string{"no-hash.txt"},
+		},
+		{
+			name:       "目录内hash文件",
+			keys:       pickFile(nodes[0].Children[0]),
+			wantTitles: []string{"01.wav"},
+		},
+		{
+			name:       "嵌套子目录文件",
+			keys:       pickFile(nodes[0].Children[1].Children[1]),
+			wantTitles: []string{"03.flac"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := spider.FilesForKeys(analysis, tt.keys)
+			if len(files) != len(tt.wantTitles) {
+				t.Fatalf("FilesForKeys 命中数 = %d, 期望 %d (%v)", len(files), len(tt.wantTitles), files)
+			}
+			for i, want := range tt.wantTitles {
+				if files[i].Track.Title != want {
+					t.Fatalf("命中文件[%d] = %q, 期望 %q", i, files[i].Track.Title, want)
+				}
+			}
+		})
+	}
+
+	// 全选：叶子 key 集应命中树上全部 5 个文件
+	files := spider.FilesForKeys(analysis, leafKeysOf(nodes))
+	if len(files) != 5 {
+		t.Fatalf("全选命中数 = %d, 期望 5", len(files))
 	}
 }

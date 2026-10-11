@@ -123,10 +123,14 @@ func (cmd *Command) Execute() {
 		if cmd.Flags.FormatPriority != "" || cmd.Flags.OnlyFormats != "" || cmd.Flags.IncludeFormats != "" {
 			utils.Warning(i18n.T("cli_select_format_flags_ignored"))
 		}
-		// 委托交互层完成选择与下载（CLI 模式结束后直接退出，不等待回车）
-		ui.SelectAndDownload(cmd.App, tasks, cmd.Flags.Reselect, false)
-		// SelectAndDownload 内部失败路径会自行打印错误并中止，走到这里即视为流程结束
-		os.Exit(0)
+		// 委托交互层完成选择与下载（CLI 模式结束后直接退出，不等待回车），
+		// 按流程成败决定退出码，与普通下载路径的退出码约定一致
+		success := ui.SelectAndDownload(cmd.App, tasks, cmd.Flags.Reselect, false)
+		if success {
+			os.Exit(0)
+		}
+		utils.Error("下载过程中出现错误")
+		os.Exit(1)
 	}
 
 	// 构建格式过滤策略

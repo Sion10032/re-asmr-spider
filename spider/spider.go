@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"unicode"
 
 	"re-asmr-spider/config"
 	"re-asmr-spider/i18n"
@@ -112,7 +113,20 @@ func (ac *ASMRClient) Login() error {
 	return nil
 }
 
+// stripWorkPrefix 剥掉作品号开头的类型前缀（RJ/VJ 等，不区分大小写），返回 API 所需的纯数字 id；
+// 输入无前缀时原样返回。asmr.one 的 tracks 接口只接受纯数字 id（如 RJ01705068 → 01705068）。
+func stripWorkPrefix(id string) string {
+	id = strings.TrimSpace(id)
+	r := []rune(id)
+	if len(r) >= 2 && unicode.IsLetter(r[0]) && unicode.IsLetter(r[1]) {
+		return string(r[2:])
+	}
+	return id
+}
+
 func (ac *ASMRClient) GetVoiceTracks(id string) ([]Track, error) {
+	// API 只接受纯数字 id，在唯一收口点剥掉可能存在的类型前缀，调用方一律传入输入原样
+	id = stripWorkPrefix(id)
 	utils.GlobalMonitor.UpdateActivity()
 
 	client := utils.Client.Get().(*http.Client)
@@ -195,14 +209,13 @@ func (ac *ASMRClient) Download(id string) {
 }
 
 func (ac *ASMRClient) DownloadWithFilter(id string, strategy *FilterStrategy, onConflict func(*FormatAnalysis) *FilterStrategy) {
-	id = strings.Replace(id, "RJ", "", 1)
-	utils.Info(i18n.T("fetching_work_info", "RJ"+id))
+	utils.Info(i18n.T("fetching_work_info", id))
 	tracks, err := ac.GetVoiceTracks(id)
 	if err != nil {
 		utils.Error(i18n.T("request_failed", err))
 		return
 	}
-	basePath := "downloads/RJ" + id
+	basePath := "downloads/" + id
 
 	// 分析文件格式
 	analysis := AnalyzeFormats(tracks, basePath)
@@ -223,7 +236,7 @@ func (ac *ASMRClient) DownloadWithFilter(id string, strategy *FilterStrategy, on
 	}
 
 	ac.EnsureDir(filteredTracks, basePath)
-	utils.Success(i18n.T("work_info_fetched", "RJ"+id))
+	utils.Success(i18n.T("work_info_fetched", id))
 }
 
 // rebuildTracksWithFilter 根据过滤后的文件列表重建track结构

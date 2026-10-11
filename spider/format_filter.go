@@ -8,15 +8,6 @@ import (
 // ModeFileManual 过滤策略分支：按用户选中的文件 key 集合精确筛选。
 const ModeFileManual = "file-manual"
 
-// NormalizeRJID 将任务标识归一化为纯数字 ID：去首尾空白，并不区分大小写剥掉一次 RJ 前缀。
-func NormalizeRJID(task string) string {
-	trimmed := strings.TrimSpace(task)
-	if len(trimmed) >= 2 && strings.EqualFold(trimmed[:2], "RJ") {
-		return trimmed[2:]
-	}
-	return trimmed
-}
-
 // TrackKey 生成文件的唯一标识：hash 非空时直接使用 hash，否则回退为 "path|title"。
 func TrackKey(hash, path, title string) string {
 	if hash != "" {

@@ -151,28 +151,6 @@ func TestApplyFilter_OnlyFormats_NoPriorityKeepsAllWhitelisted(t *testing.T) {
 	}
 }
 
-func TestNormalizeRJID(t *testing.T) {
-	cases := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{"uppercase prefix", "RJ123456", "123456"},
-		{"lowercase prefix", "rj123456", "123456"},
-		{"no prefix", "123456", "123456"},
-		{"surrounded by spaces", " RJ123456 ", "123456"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := NormalizeRJID(tc.input)
-			if got != tc.want {
-				t.Fatalf("NormalizeRJID(%q) = %q, want %q", tc.input, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestTrackKey(t *testing.T) {
 	cases := []struct {
 		name       string

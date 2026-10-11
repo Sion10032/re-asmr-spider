@@ -13,7 +13,7 @@
   "invalid_choice": "無效的選擇，請重新輸入",
 
   "unfinished_download_detected": "檢測到未完成的下載任務!",
-  "unfinished_tasks": "未完成的 RJ 號: %s",
+  "unfinished_tasks": "未完成的作品號: %s",
   "format_strategy_saved": "已保存格式篩選策略",
   "format_strategy_found": "發現已保存的格式篩選策略",
   "use_saved_strategy_prompt": "是否使用上次的格式選擇? (y/n, 預設y)",
@@ -24,10 +24,10 @@
   "download_cancelled": "已取消繼續下載",
 
   "start_download_title": "=== 開始下載 ===",
-  "download_input_hint": "請輸入要下載的音聲的 RJ 號, 如: RJ373001",
+  "download_input_hint": "請輸入要下載的音聲的作品號, 如: RJ373001",
   "download_multiple_hint": "如果要下載多個，請用空格分開",
-  "prompt_rj_number": "RJ號",
-  "no_rj_input": "未輸入任何 RJ 號，返回主菜單",
+  "prompt_rj_number": "作品號",
+  "no_rj_input": "未輸入任何作品號，返回主菜單",
   "press_enter_to_return": "按回車返回主菜單...",
 
   "save_download_state_failed": "保存下載狀態失敗: %v",
@@ -150,7 +150,7 @@
   "format_filter_include_prompt": "額外保留哪些檔案？(留空=不額外保留；例: jpg,lrc 保留封面和字幕)",
 
   "select_download_title": "=== 手動選擇下載 ===",
-  "select_download_input_hint": "請輸入要手動選擇下載的音聲 RJ 號（多個用空格分開），如: RJ373001",
+  "select_download_input_hint": "請輸入要手動選擇下載的音聲作品號（多個用空格分開），如: RJ373001",
 
   "tui_loading": "正在加載文件樹選擇器...",
   "tui_header_stats": "已選 %d | wav:%d flac:%d mp3:%d aac:%d 其它:%d | 共 %d 檔案",
@@ -159,16 +159,16 @@
   "tui_selected_none": "已全不選",
   "tui_none_selected": "未選擇任何檔案",
 
-  "selection_reused": "RJ%s 沿用已保存選擇：%d 個檔案",
+  "selection_reused": "作品 %s 沿用已保存選擇：%d 個檔案",
   "selection_updated_hint": "已沿用記錄；重新選擇請用 -reselect 或刪除 .selection.json",
-  "selection_missing_warn": "RJ%s 有 %d 個已選檔案在當前文件樹中不存在，僅下載命中的檔案",
-  "selection_stale": "RJ%s 已保存選擇與當前文件樹不符，請重新選擇",
-  "selection_record_read_failed": "RJ%s 選擇記錄讀取失敗，將按無記錄處理: %v",
-  "selection_fetch_failed": "獲取 RJ%s 文件列表失敗，跳過該任務: %v",
-  "selection_no_selector": "RJ%s 需要手動選擇檔案但未提供選擇器，跳過該任務",
+  "selection_missing_warn": "作品 %s 有 %d 個已選檔案在當前文件樹中不存在，僅下載命中的檔案",
+  "selection_stale": "作品 %s 已保存選擇與當前文件樹不符，請重新選擇",
+  "selection_record_read_failed": "作品 %s 選擇記錄讀取失敗，將按無記錄處理: %v",
+  "selection_fetch_failed": "獲取 作品 %s 文件列表失敗，跳過該任務: %v",
+  "selection_no_selector": "作品 %s 需要手動選擇檔案但未提供選擇器，跳過該任務",
   "selection_cancelled": "已取消文件選擇，下載中止（已保存的選擇記錄保留）",
-  "selection_task_skipped": "RJ%s 未選擇任何檔案，跳過該任務",
-  "selection_save_failed": "RJ%s 保存選擇記錄失敗: %v",
+  "selection_task_skipped": "作品 %s 未選擇任何檔案，跳過該任務",
+  "selection_save_failed": "作品 %s 保存選擇記錄失敗: %v",
   "cli_select_format_flags_ignored": "手動選擇模式下已忽略 -format-priority/-only-formats/-include-formats 參數",
   "cli_reselect_without_select_ignored": "-reselect 僅在與 -select 搭配時生效，已忽略該參數"
 }
