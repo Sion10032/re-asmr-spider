@@ -18,7 +18,13 @@ func RunInteractive(application *app.App) {
 	utils.Info(i18n.T("config_loaded"))
 
 	// 检查未完成的下载
-	application.CheckUnfinishedDownload(func(tasks []string, savedStrategy *config.FormatStrategy) {
+	application.CheckUnfinishedDownload(func(tasks []string, savedStrategy *config.FormatStrategy, selectionMode bool) {
+		// 手动文件树选择模式的续传：走带 TUI 选择器的下载编排
+		if selectionMode {
+			SelectAndDownload(application, tasks, false, true)
+			return
+		}
+
 		// 如果有保存的格式策略，询问用户是否使用
 		var baseFilter *spider.FilterStrategy
 		var formatCallback func(*spider.FormatAnalysis, func(*spider.FilterStrategy)) *spider.FilterStrategy
@@ -74,10 +80,12 @@ func RunInteractive(application *app.App) {
 		case "1":
 			StartDownload(application)
 		case "2":
-			ModifyConfig(application)
+			StartSelectDownload(application)
 		case "3":
-			ShowAbout()
+			ModifyConfig(application)
 		case "4":
+			ShowAbout()
+		case "5":
 			ChangeLanguage(application)
 		case "0":
 			utils.Info(i18n.T("goodbye"))
@@ -94,6 +102,7 @@ func showMainMenu() {
 	utils.Info(i18n.T("main_menu"))
 	utils.Info(strings.Repeat("=", 50))
 	utils.Info("  " + i18n.T("menu_start_download"))
+	utils.Info("  " + i18n.T("menu_select_download"))
 	utils.Info("  " + i18n.T("menu_modify_config"))
 	utils.Info("  " + i18n.T("menu_about"))
 	utils.Info("  " + i18n.T("menu_language") + " / Language")

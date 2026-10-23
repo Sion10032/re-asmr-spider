@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"unicode"
 
 	"re-asmr-spider/config"
 	"re-asmr-spider/i18n"
@@ -39,9 +40,9 @@ func InitSpider(cfg *config.Config) error {
 }
 
 type FailedTask struct {
-	URL       string
-	DirPath   string
-	FileName  string
+	URL        string
+	DirPath    string
+	FileName   string
 	RetryCount int
 }
 
@@ -55,10 +56,10 @@ type ASMRClient struct {
 	mu            sync.Mutex
 }
 
-type track struct {
+type Track struct {
 	Type             string  `json:"type"`
 	Title            string  `json:"title"`
-	Children         []track `json:"children,omitempty"`
+	Children         []Track `json:"children,omitempty"`
 	Hash             string  `json:"hash,omitempty"`
 	WorkTitle        string  `json:"workTitle,omitempty"`
 	MediaStreamURL   string  `json:"mediaStreamUrl,omitempty"`
@@ -112,7 +113,20 @@ func (ac *ASMRClient) Login() error {
 	return nil
 }
 
-func (ac *ASMRClient) GetVoiceTracks(id string) ([]track, error) {
+// stripWorkPrefix 剥掉作品号开头的类型前缀（RJ/VJ 等，不区分大小写），返回 API 所需的纯数字 id；
+// 输入无前缀时原样返回。asmr.one 的 tracks 接口只接受纯数字 id（如 RJ01705068 → 01705068）。
+func stripWorkPrefix(id string) string {
+	id = strings.TrimSpace(id)
+	r := []rune(id)
+	if len(r) >= 2 && unicode.IsLetter(r[0]) && unicode.IsLetter(r[1]) {
+		return string(r[2:])
+	}
+	return id
+}
+
+func (ac *ASMRClient) GetVoiceTracks(id string) ([]Track, error) {
+	// API 只接受纯数字 id，在唯一收口点剥掉可能存在的类型前缀，调用方一律传入输入原样
+	id = stripWorkPrefix(id)
 	utils.GlobalMonitor.UpdateActivity()
 
 	client := utils.Client.Get().(*http.Client)
@@ -133,7 +147,7 @@ func (ac *ASMRClient) GetVoiceTracks(id string) ([]track, error) {
 		utils.Error(i18n.T("request_failed", err))
 		return nil, err
 	}
-	res := make([]track, 0)
+	res := make([]Track, 0)
 	err = json.Unmarshal(all, &res)
 	utils.GlobalMonitor.UpdateActivity()
 	return res, nil
@@ -144,9 +158,9 @@ func (ac *ASMRClient) AddFailedTask(url, dirPath, fileName string, retryCount in
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
 	ac.FailedTasks = append(ac.FailedTasks, FailedTask{
-		URL:       url,
-		DirPath:   dirPath,
-		FileName:  fileName,
+		URL:        url,
+		DirPath:    dirPath,
+		FileName:   fileName,
 		RetryCount: retryCount,
 	})
 }
@@ -195,14 +209,13 @@ func (ac *ASMRClient) Download(id string) {
 }
 
 func (ac *ASMRClient) DownloadWithFilter(id string, strategy *FilterStrategy, onConflict func(*FormatAnalysis) *FilterStrategy) {
-	id = strings.Replace(id, "RJ", "", 1)
-	utils.Info(i18n.T("fetching_work_info", "RJ"+id))
+	utils.Info(i18n.T("fetching_work_info", id))
 	tracks, err := ac.GetVoiceTracks(id)
 	if err != nil {
 		utils.Error(i18n.T("request_failed", err))
 		return
 	}
-	basePath := "downloads/RJ" + id
+	basePath := "downloads/" + id
 
 	// 分析文件格式
 	analysis := AnalyzeFormats(tracks, basePath)
@@ -213,7 +226,7 @@ func (ac *ASMRClient) DownloadWithFilter(id string, strategy *FilterStrategy, on
 	}
 
 	// 应用过滤策略
-	var filteredTracks []track
+	var filteredTracks []Track
 	if strategy != nil {
 		filteredFiles := analysis.ApplyFilter(strategy)
 		// 重建track列表（保持层次结构）
@@ -223,12 +236,12 @@ func (ac *ASMRClient) DownloadWithFilter(id string, strategy *FilterStrategy, on
 	}
 
 	ac.EnsureDir(filteredTracks, basePath)
-	utils.Success(i18n.T("work_info_fetched", "RJ"+id))
+	utils.Success(i18n.T("work_info_fetched", id))
 }
 
 // rebuildTracksWithFilter 根据过滤后的文件列表重建track结构
-func (ac *ASMRClient) rebuildTracksWithFilter(tracks []track, currentPath string, filteredFiles []*FileInfo) []track {
-	result := make([]track, 0)
+func (ac *ASMRClient) rebuildTracksWithFilter(tracks []Track, currentPath string, filteredFiles []*FileInfo) []Track {
+	result := make([]Track, 0)
 
 	for _, t := range tracks {
 		if t.Type != "folder" {
@@ -309,7 +322,7 @@ func (ac *ASMRClient) downloadFile(url string, dirPath string, fileName string, 
 	ac.WorkerPool.Submit(downloader)
 }
 
-func (ac *ASMRClient) EnsureDir(tracks []track, basePath string) {
+func (ac *ASMRClient) EnsureDir(tracks []Track, basePath string) {
 	path := basePath
 	_ = os.MkdirAll(path, os.ModePerm)
 	for _, t := range tracks {

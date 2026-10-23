@@ -1,18 +1,21 @@
 {
+  "session_progress": "作品 %d/%d：%s",
+  "session_skip_confirm": "ファイルが未選択です：もう一度 Enter でこの作品をスキップします",
   "welcome": "%s へようこそ",
   "config_loaded": "設定ファイルを読み込みました",
   "main_menu": "メインメニュー",
   "menu_start_download": "1. ダウンロードを開始",
-  "menu_modify_config": "2. 設定を変更",
-  "menu_about": "3. このツールについて",
-  "menu_language": "4. 言語を切り替え",
+  "menu_select_download": "2. 手動選択ダウンロード",
+  "menu_modify_config": "3. 設定を変更",
+  "menu_about": "4. このツールについて",
+  "menu_language": "5. 言語を切り替え",
   "menu_exit": "0. 終了",
   "prompt_choose_operation": "操作を選択してください",
   "goodbye": "ご利用ありがとうございました。",
   "invalid_choice": "無効な選択です。もう一度入力してください",
 
   "unfinished_download_detected": "未完了のダウンロードタスクが検出されました！",
-  "unfinished_tasks": "未完了のRJ番号: %s",
+  "unfinished_tasks": "未完了の作品ID: %s",
   "format_strategy_saved": "形式フィルタ戦略を保存しました",
   "format_strategy_found": "保存された形式フィルタ戦略が見つかりました",
   "use_saved_strategy_prompt": "保存された形式選択を使用しますか？ (y/n, デフォルトy)",
@@ -23,10 +26,10 @@
   "download_cancelled": "ダウンロードの続行をキャンセルしました",
 
   "start_download_title": "=== ダウンロード開始 ===",
-  "download_input_hint": "ダウンロードしたい音声作品のRJ番号を入力してください（例：RJ373001）",
+  "download_input_hint": "ダウンロードしたい音声作品の作品IDを入力してください（例：RJ373001）",
   "download_multiple_hint": "複数をダウンロードする場合は、スペースで区切ってください",
-  "prompt_rj_number": "RJ番号",
-  "no_rj_input": "RJ番号が入力されていません。メインメニューに戻ります",
+  "prompt_rj_number": "作品ID",
+  "no_rj_input": "作品IDが入力されていません。メインメニューに戻ります",
   "press_enter_to_return": "Enterキーを押してメインメニューに戻ります...",
 
   "save_download_state_failed": "ダウンロード状態の保存に失敗しました: %v",
@@ -146,5 +149,27 @@
   "only_formats_applied": "次の形式のみダウンロード: %s",
   "include_formats_applied": "追加でダウンロードする形式: %s",
   "format_filter_prompt": "特定の形式のみダウンロード？(空欄=すべて保持し競合は通常通り確認；例: wav または wav,flac)",
-  "format_filter_include_prompt": "追加で残すファイルは？(空欄=なし；例: jpg,lrc でカバーと字幕)"
+  "format_filter_include_prompt": "追加で残すファイルは？(空欄=なし；例: jpg,lrc でカバーと字幕)",
+
+  "select_download_title": "=== 手動選択ダウンロード ===",
+  "select_download_input_hint": "手動でファイルを選択してダウンロードする音声作品の作品IDを入力してください（複数はスペースで区切り、例：RJ373001）",
+
+  "tui_loading": "ファイルツリーセレクターを読み込み中...",
+  "tui_header_stats": "選択済み %d | wav:%d flac:%d mp3:%d aac:%d その他:%d | 合計 %d ファイル",
+  "tui_help_line": "↑/↓/j/k 移動  Space 選択  →/l 展開 ←/h 折りたたみ  Enter 確認  a 全選択  n 全解除  PgUp/PgDn スクロール  q/Esc 終了",
+  "tui_selected_all": "すべてのファイルを選択しました",
+  "tui_selected_none": "すべてのファイルを選択解除しました",
+  "tui_none_selected": "ファイルが選択されていません",
+
+  "selection_reused": "作品 %s 保存された選択を再利用：%d ファイル",
+  "selection_updated_hint": "記録を再利用中；再選択するには -reselect を使うか .selection.json を削除してください",
+  "selection_missing_warn": "作品 %s 選択済みの %d 個のファイルが現在のファイルツリーに存在しません。一致したファイルのみダウンロードします",
+  "selection_stale": "作品 %s 保存された選択が現在のファイルツリーと一致しません。再選択してください",
+  "selection_record_read_failed": "作品 %s 選択記録の読み込みに失敗しました。記録なしとして扱います: %v",
+  "selection_fetch_failed": "作品 %s のファイルリストの取得に失敗しました。このタスクをスキップします: %v",
+  "selection_cancelled": "ファイル選択がキャンセルされました。ダウンロードを中止します（保存された選択記録は保持されます）",
+  "selection_task_skipped": "作品 %s ファイルが選択されていません。このタスクをスキップします",
+  "selection_save_failed": "作品 %s 選択記録の保存に失敗しました: %v",
+  "cli_select_format_flags_ignored": "手動選択モードでは -format-priority/-only-formats/-include-formats を無視しました",
+  "cli_reselect_without_select_ignored": "-reselect は -select と併用した場合のみ有効です。この引数は無視されました"
 }

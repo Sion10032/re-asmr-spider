@@ -6,20 +6,22 @@ import (
 
 // Flags 命令行参数
 type Flags struct {
-	ConfigPath      string
-	DownloadRJs     string
-	ShowVersion     bool
-	ShowHelp        bool
-	Account         string
-	Password        string
-	MaxTask         int
-	MaxThread       int
-	MaxRetry        int
-	BufferSizeMB    int
-	Proxy           string
-	FormatPriority  string // 格式优先级 (例: flac,wav,mp3)
-	IncludeFormats  string // 额外包含的扩展名 (例: lrc,jpg)，冲突解决后追加下载
-	OnlyFormats     string // 硬白名单：全局只下载这些扩展名 (例: wav,flac)，其余一律丢弃
+	ConfigPath     string
+	DownloadRJs    string
+	ShowVersion    bool
+	ShowHelp       bool
+	Account        string
+	Password       string
+	MaxTask        int
+	MaxThread      int
+	MaxRetry       int
+	BufferSizeMB   int
+	Proxy          string
+	FormatPriority string // 格式优先级 (例: flac,wav,mp3)
+	IncludeFormats string // 额外包含的扩展名 (例: lrc,jpg)，冲突解决后追加下载
+	OnlyFormats    string // 硬白名单：全局只下载这些扩展名 (例: wav,flac)，其余一律丢弃
+	SelectMode     bool   // 手动文件树选择模式 (需与 -download 搭配)
+	Reselect       bool   // 强制重新选择，忽略已保存的选择记录 (需与 -select 搭配)
 }
 
 // ParseFlags 解析命令行参数
@@ -40,6 +42,8 @@ func ParseFlags() *Flags {
 	flag.StringVar(&f.FormatPriority, "format-priority", "", "格式优先级，逗号分隔 (例: flac,wav,mp3)")
 	flag.StringVar(&f.IncludeFormats, "include-formats", "", "额外包含的扩展名，逗号分隔 (例: lrc,jpg)，冲突解决后追加下载")
 	flag.StringVar(&f.OnlyFormats, "only-formats", "", "硬白名单：全局只下载指定扩展名，逗号分隔 (例: wav,flac)，其余一律丢弃")
+	flag.BoolVar(&f.SelectMode, "select", false, "手动选择下载的文件 (与 -download 搭配使用)")
+	flag.BoolVar(&f.Reselect, "reselect", false, "忽略已保存的选择记录，强制重新选择 (与 -select 搭配使用)")
 
 	flag.Parse()
 

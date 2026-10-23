@@ -1,18 +1,21 @@
 {
+  "session_progress": "作品 %d/%d：%s",
+  "session_skip_confirm": "未选择任何文件：再按一次回车跳过该作品",
   "welcome": "欢迎使用 %s",
   "config_loaded": "配置文件已加载",
   "main_menu": "主菜单",
   "menu_start_download": "1. 开始下载",
-  "menu_modify_config": "2. 修改配置",
-  "menu_about": "3. 关于",
-  "menu_language": "4. 切换语言",
+  "menu_select_download": "2. 手动选择下载",
+  "menu_modify_config": "3. 修改配置",
+  "menu_about": "4. 关于",
+  "menu_language": "5. 切换语言",
   "menu_exit": "0. 退出",
   "prompt_choose_operation": "请选择操作",
   "goodbye": "感谢使用，再见！",
   "invalid_choice": "无效的选择，请重新输入",
 
   "unfinished_download_detected": "检测到未完成的下载任务!",
-  "unfinished_tasks": "未完成的 RJ 号: %s",
+  "unfinished_tasks": "未完成的作品号: %s",
   "format_strategy_saved": "已保存格式筛选策略",
   "format_strategy_found": "发现已保存的格式筛选策略",
   "use_saved_strategy_prompt": "是否使用上次的格式选择? (y/n, 默认y)",
@@ -23,10 +26,10 @@
   "download_cancelled": "已取消继续下载",
 
   "start_download_title": "=== 开始下载 ===",
-  "download_input_hint": "请输入要下载的音声的 RJ 号, 如: RJ373001",
+  "download_input_hint": "请输入要下载的音声的作品号, 如: RJ373001",
   "download_multiple_hint": "如果要下载多个，请用空格分开",
-  "prompt_rj_number": "RJ号",
-  "no_rj_input": "未输入任何 RJ 号，返回主菜单",
+  "prompt_rj_number": "作品号",
+  "no_rj_input": "未输入任何作品号，返回主菜单",
   "press_enter_to_return": "按回车返回主菜单...",
 
   "save_download_state_failed": "保存下载状态失败: %v",
@@ -146,5 +149,27 @@
   "only_formats_applied": "只下载以下格式: %s",
   "include_formats_applied": "额外下载以下格式: %s",
   "format_filter_prompt": "只下载特定格式？(留空=全部并按需处理冲突；例: wav 或 wav,flac)",
-  "format_filter_include_prompt": "额外保留哪些文件？(留空=不额外保留；例: jpg,lrc 保留封面和字幕)"
+  "format_filter_include_prompt": "额外保留哪些文件？(留空=不额外保留；例: jpg,lrc 保留封面和字幕)",
+
+  "select_download_title": "=== 手动选择下载 ===",
+  "select_download_input_hint": "请输入要手动选择下载的音声作品号（多个用空格分隔），如: RJ373001",
+
+  "tui_loading": "正在加载文件树选择器...",
+  "tui_header_stats": "已选 %d | wav:%d flac:%d mp3:%d aac:%d 其它:%d | 共 %d 文件",
+  "tui_help_line": "↑/↓/j/k 移动  Space 勾选  →/l 展开 ←/h 折叠  Enter 确认  a 全选  n 全不选  PgUp/PgDn 滚动  q/Esc 退出",
+  "tui_selected_all": "已全选",
+  "tui_selected_none": "已全不选",
+  "tui_none_selected": "未选择任何文件",
+
+  "selection_reused": "作品 %s 沿用已保存选择：%d 个文件",
+  "selection_updated_hint": "已沿用记录；重新选择请用 -reselect 或删除 .selection.json",
+  "selection_missing_warn": "作品 %s 有 %d 个已选文件在当前文件树中不存在，仅下载命中的文件",
+  "selection_stale": "作品 %s 已保存选择与当前文件树不符，请重新选择",
+  "selection_record_read_failed": "作品 %s 选择记录读取失败，将按无记录处理: %v",
+  "selection_fetch_failed": "获取 作品 %s 文件列表失败，跳过该任务: %v",
+  "selection_cancelled": "已取消文件选择，下载中止（已保存的选择记录保留）",
+  "selection_task_skipped": "作品 %s 未选择任何文件，跳过该任务",
+  "selection_save_failed": "作品 %s 保存选择记录失败: %v",
+  "cli_select_format_flags_ignored": "手动选择模式下已忽略 -format-priority/-only-formats/-include-formats 参数",
+  "cli_reselect_without_select_ignored": "-reselect 仅在与 -select 搭配时生效，已忽略该参数"
 }

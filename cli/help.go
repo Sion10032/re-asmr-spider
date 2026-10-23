@@ -58,6 +58,13 @@ func PrintHelp() {
         冲突解决后，额外下载所有指定扩展名的文件
         可与 -format-priority、-only-formats 配合使用
 
+  -select
+        手动选择下载的文件（仅与 -download 搭配使用）
+        下载前打开文件树选择器，勾选要下载的文件
+
+  -reselect
+        忽略已保存的选择记录，强制重新选择（需与 -select 搭配使用）
+
   -version
         显示版本信息
 
@@ -98,6 +105,12 @@ func PrintHelp() {
   # 额外下载所有txt和jpg文件
   %s -download RJ123456 -include-formats txt,jpg
 
+  # 手动选择要下载的文件
+  %s -download RJ123456 -select
+
+  # 忽略已保存的选择记录，重新选择要下载的文件
+  %s -download RJ123456 -select -reselect
+
   # 组合使用：冲突时选择FLAC，并额外下载所有图片和文本
   %s -download RJ123456 -format-priority flac -include-formats txt,jpg,png
 
@@ -106,6 +119,8 @@ func PrintHelp() {
   数据来源: https://asmr.one
 `,
 		i18n.AppName(),
+		os.Args[0],
+		os.Args[0],
 		os.Args[0],
 		os.Args[0],
 		os.Args[0],

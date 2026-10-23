@@ -18,6 +18,7 @@ type DownloadState struct {
 	InProgress      bool            `json:"in_progress"`
 	Tasks           []string        `json:"tasks"`
 	FormatStrategy  *FormatStrategy `json:"format_strategy,omitempty"` // 格式筛选策略
+	SelectionMode   bool            `json:"selection_mode,omitempty"` // 手动文件树选择模式标记
 }
 
 type Config struct {
@@ -72,9 +73,18 @@ func SaveDownloadStateWithStrategy(cfg *Config, tasks []string, strategy *Format
 	return SaveConfig(cfg)
 }
 
+// SaveDownloadStateForSelection 保存手动选择模式的下载状态（InProgress 与 SelectionMode 均置为 true）
+func SaveDownloadStateForSelection(cfg *Config, tasks []string) error {
+	cfg.DownloadState.InProgress = true
+	cfg.DownloadState.SelectionMode = true
+	cfg.DownloadState.Tasks = tasks
+	return SaveConfig(cfg)
+}
+
 // ClearDownloadState 清除下载状态
 func ClearDownloadState(cfg *Config) error {
 	cfg.DownloadState.InProgress = false
+	cfg.DownloadState.SelectionMode = false
 	cfg.DownloadState.Tasks = []string{}
 	cfg.DownloadState.FormatStrategy = nil
 	return SaveConfig(cfg)

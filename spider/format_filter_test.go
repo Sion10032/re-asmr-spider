@@ -54,12 +54,12 @@ func TestParseFormatList(t *testing.T) {
 // 复现反馈场景：wav 与 mp3 文件名不同（不构成同名冲突组），
 // -only-formats wav 仍应只保留 wav，丢弃 mp3 及封面/字幕。
 func TestApplyFilter_OnlyFormats_DropsNonWhitelistedWithoutConflict(t *testing.T) {
-	tracks := []track{
-		{Type: "folder", Title: "wav", Children: []track{
+	tracks := []Track{
+		{Type: "folder", Title: "wav", Children: []Track{
 			{Type: "audio", Title: "track01.wav"},
 			{Type: "audio", Title: "track02.wav"},
 		}},
-		{Type: "folder", Title: "mp3", Children: []track{
+		{Type: "folder", Title: "mp3", Children: []Track{
 			{Type: "audio", Title: "song_a.mp3"},
 			{Type: "audio", Title: "song_b.mp3"},
 		}},
@@ -83,7 +83,7 @@ func TestApplyFilter_OnlyFormats_DropsNonWhitelistedWithoutConflict(t *testing.T
 // -only-formats wav 配合 -include-formats jpg,lrc：
 // 保留 wav，并把封面/字幕加回，但 mp3 仍被丢弃。
 func TestApplyFilter_OnlyFormats_WithIncludeFormats(t *testing.T) {
-	tracks := []track{
+	tracks := []Track{
 		{Type: "audio", Title: "track01.wav"},
 		{Type: "audio", Title: "song_a.mp3"},
 		{Type: "image", Title: "cover.jpg"},
@@ -108,7 +108,7 @@ func TestApplyFilter_OnlyFormats_WithIncludeFormats(t *testing.T) {
 // 同名 track01 的三种格式中，mp3 被白名单排除，wav 输给 flac，只剩 flac；
 // 另有一个无同名对的 bonus.mp3，必须被白名单整体丢弃（否则优先级逻辑会放它过去）。
 func TestApplyFilter_OnlyFormats_PriorityResolvesWithinWhitelist(t *testing.T) {
-	tracks := []track{
+	tracks := []Track{
 		{Type: "audio", Title: "track01.wav"},
 		{Type: "audio", Title: "track01.flac"},
 		{Type: "audio", Title: "track01.mp3"},
@@ -132,7 +132,7 @@ func TestApplyFilter_OnlyFormats_PriorityResolvesWithinWhitelist(t *testing.T) {
 // -only-formats wav,flac 但未给 -format-priority：白名单内同名 wav/flac 无优先级裁决，
 // 应两者都保留（"未指定优先级=保留所有白名单格式"），而 mp3 仍被白名单丢弃。
 func TestApplyFilter_OnlyFormats_NoPriorityKeepsAllWhitelisted(t *testing.T) {
-	tracks := []track{
+	tracks := []Track{
 		{Type: "audio", Title: "track01.wav"},
 		{Type: "audio", Title: "track01.flac"},
 		{Type: "audio", Title: "track01.mp3"},
@@ -151,9 +151,95 @@ func TestApplyFilter_OnlyFormats_NoPriorityKeepsAllWhitelisted(t *testing.T) {
 	}
 }
 
+func TestTrackKey(t *testing.T) {
+	cases := []struct {
+		name       string
+		hash, path string
+		title      string
+		want       string
+	}{
+		{"hash present", "abc123", "dir/sub", "track01.wav", "abc123"},
+		{"hash empty falls back", "", "dir/sub", "voice.wav", "dir/sub|voice.wav"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := TrackKey(tc.hash, tc.path, tc.title)
+			if got != tc.want {
+				t.Fatalf("TrackKey(%q, %q, %q) = %q, want %q", tc.hash, tc.path, tc.title, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCountByFormat(t *testing.T) {
+	files := []*FileInfo{
+		{Path: "audio/a.wav"},
+		{Path: "audio/b.flac"},
+		{Path: "audio/c.mp3"},
+		{Path: "audio/d.aac"},
+		{Path: "video/e.mp4"},
+		{Path: "docs/f.txt"},
+		{Path: "noext"},
+	}
+
+	got := CountByFormat(files)
+	want := FormatStats{Total: 7, Wav: 1, Flac: 1, Mp3: 1, Aac: 1, Other: 3}
+	if got != want {
+		t.Fatalf("CountByFormat() = %+v, want %+v", got, want)
+	}
+}
+
+// file-manual 模式：完全按选中 key 集合筛文件，跳过 OnlyFormats/冲突/Include 全部逻辑。
+func TestApplyFilter_FileManual(t *testing.T) {
+	tracks := []Track{
+		{Type: "audio", Title: "track01.wav", Hash: "hash-wav"},
+		{Type: "audio", Title: "track01.mp3", Hash: "hash-mp3"},
+		{Type: "audio", Title: "voice.wav"}, // 无 hash，回退 key 为 path|title
+	}
+
+	analysis := AnalyzeFormats(tracks, "base")
+	wavKey := TrackKey(tracks[0].Hash, "base", tracks[0].Title)
+	voiceKey := TrackKey("", "base", "voice.wav")
+
+	t.Run("select only wav of conflict group", func(t *testing.T) {
+		result := analysis.ApplyFilter(&FilterStrategy{
+			Mode:           ModeFileManual,
+			SelectedHashes: map[string]bool{wavKey: true},
+		})
+		got := titlesOf(result)
+		want := []string{"track01.wav"}
+		if !equalStrings(got, want) {
+			t.Fatalf("file-manual only wav: got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("fallback key matches hashless file", func(t *testing.T) {
+		result := analysis.ApplyFilter(&FilterStrategy{
+			Mode:           ModeFileManual,
+			SelectedHashes: map[string]bool{voiceKey: true},
+		})
+		got := titlesOf(result)
+		want := []string{"voice.wav"}
+		if !equalStrings(got, want) {
+			t.Fatalf("file-manual fallback key: got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("unknown keys ignored without panic", func(t *testing.T) {
+		result := analysis.ApplyFilter(&FilterStrategy{
+			Mode:           ModeFileManual,
+			SelectedHashes: map[string]bool{"no-such-key": true},
+		})
+		if len(result) != 0 {
+			t.Fatalf("file-manual unknown key: got %v, want empty", titlesOf(result))
+		}
+	})
+}
+
 // 回归保护：未设置 OnlyFormats 时，无冲突场景应保持原行为（全部保留）。
 func TestApplyFilter_NoOnlyFormats_KeepsAllWhenNoConflict(t *testing.T) {
-	tracks := []track{
+	tracks := []Track{
 		{Type: "audio", Title: "track01.wav"},
 		{Type: "audio", Title: "song_a.mp3"},
 		{Type: "image", Title: "cover.jpg"},

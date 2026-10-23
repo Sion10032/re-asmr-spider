@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"runtime"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,6 +35,7 @@ const (
 type Logger struct {
 	enableColor bool
 	showTime    bool
+	muted       atomic.Bool // 静音标志：全屏 TUI 会话期间抑制 stdout 输出，避免破坏画面
 }
 
 var defaultLogger = &Logger{
@@ -49,6 +51,11 @@ func isWindowsColorSupported() bool {
 
 // printLog 内部方法：打印日志消息
 func (l *Logger) printLog(level LogLevel, message string) {
+	// 全屏 TUI 会话期间静音：日志直接写入 altscreen 会破坏画面，错误改由 TUI 状态行呈现
+	if l.muted.Load() {
+		return
+	}
+
 	var prefix string
 	var color string
 
@@ -96,6 +103,11 @@ func (l *Logger) logMessage(level LogLevel, msg string) {
 func (l *Logger) logFormat(level LogLevel, format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
 	l.printLog(level, message)
+}
+
+// SetMuted 设置全局日志静音开关：全屏 TUI 会话开启时置 true，退出时置 false
+func SetMuted(muted bool) {
+	defaultLogger.muted.Store(muted)
 }
 
 // Debug 调试日志（灰色）- 输出消息
