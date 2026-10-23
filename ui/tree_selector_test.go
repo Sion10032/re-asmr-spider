@@ -286,9 +286,9 @@ func TestSyncOffset(t *testing.T) {
 		total      int
 		wantOffset int
 	}{
-		// height=10 时 listHeight()=6
+		// height=10 时 listHeight()=7
 		{"光标在窗口上方-窗口上移", 2, 10, 10, 30, 2},
-		{"光标在窗口下方-窗口下移", 15, 0, 10, 30, 10},
+		{"光标在窗口下方-窗口下移", 15, 0, 10, 30, 9},
 		{"光标已在窗口内-不变", 12, 10, 10, 30, 10},
 		{"列表缩短后offset越界-跟随光标", 4, 10, 10, 5, 4},
 		{"极矮窗口listHeight为1", 3, 0, 2, 30, 3},
@@ -476,7 +476,7 @@ func pressKey(t *testing.T, m *treeSelectorModel, key tea.KeyMsg) *treeSelectorM
 func TestSelectorKeybindings(t *testing.T) {
 	newModel := func() *treeSelectorModel {
 		// nil initialKeys → 全选，enter 可直接确认
-		return newTreeSelectorModel("RJ123456", "downloads/RJ123456", buildTestTree(), nil)
+		return newTreeSelectorModel("downloads/RJ123456", buildTestTree(), nil)
 	}
 
 	t.Run("enter确认并退出", func(t *testing.T) {
@@ -487,7 +487,7 @@ func TestSelectorKeybindings(t *testing.T) {
 	})
 
 	t.Run("enter无选中时仅警告不退出", func(t *testing.T) {
-		m := newTreeSelectorModel("RJ123456", "downloads/RJ123456", buildTestTree(), map[string]bool{})
+		m := newTreeSelectorModel("downloads/RJ123456", buildTestTree(), map[string]bool{})
 		m = pressKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 		if m.confirmed || m.cancelled {
 			t.Fatalf("无选中时 enter 不应退出, confirmed=%v cancelled=%v", m.confirmed, m.cancelled)
@@ -536,7 +536,7 @@ func TestSelectorKeybindings(t *testing.T) {
 
 // TestViewFolderExpandIndicator 验证文件夹行以 v/> 标识展开/折叠状态。
 func TestViewFolderExpandIndicator(t *testing.T) {
-	m := newTreeSelectorModel("RJ123456", "downloads/RJ123456", buildTestTree(), nil)
+	m := newTreeSelectorModel("downloads/RJ123456", buildTestTree(), nil)
 	m.width = 80
 	m.height = 12
 

@@ -1,4 +1,6 @@
 {
+  "session_progress": "作品 %d/%d：%s",
+  "session_skip_confirm": "未选择任何文件：再按一次回车跳过该作品",
   "welcome": "欢迎使用 %s",
   "config_loaded": "配置文件已加载",
   "main_menu": "主菜单",
@@ -165,7 +167,6 @@
   "selection_stale": "作品 %s 已保存选择与当前文件树不符，请重新选择",
   "selection_record_read_failed": "作品 %s 选择记录读取失败，将按无记录处理: %v",
   "selection_fetch_failed": "获取 作品 %s 文件列表失败，跳过该任务: %v",
-  "selection_no_selector": "作品 %s 需要手动选择文件但未提供选择器，跳过该任务",
   "selection_cancelled": "已取消文件选择，下载中止（已保存的选择记录保留）",
   "selection_task_skipped": "作品 %s 未选择任何文件，跳过该任务",
   "selection_save_failed": "作品 %s 保存选择记录失败: %v",

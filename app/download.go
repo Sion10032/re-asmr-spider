@@ -140,7 +140,7 @@ func (a *App) Download(opts DownloadOptions) *DownloadResult {
 
 // startTimeoutWatcher 启动下载无活动超时监控 goroutine。
 // 返回 stop 通道（close 即停止监控）与 timeout 通道（检测到超时时收到通知，带缓冲）。
-// 供 DownloadWithMonitorAndFormatSelector 与 DownloadWithSelection 共用。
+// 供 DownloadWithMonitorAndFormatSelector 与 SelectionSession.Finish 共用。
 func startTimeoutWatcher() (stop chan bool, timeout chan bool) {
 	stop = make(chan bool)
 	timeout = make(chan bool, 1)
@@ -251,25 +251,38 @@ func (a *App) DownloadWithMonitorAndFormatSelector(tasks []string, baseFilter *s
 	reader.ReadString('\n')
 }
 
-// SelectionFlowOptions 手动文件树选择模式的下载编排选项
-type SelectionFlowOptions struct {
-	Tasks        []string // 作品号列表（RJ/VJ 等，按输入原样使用）
-	Reselect     bool     // 为 true 时忽略已有选择记录，强制重新选择
-	WaitForInput bool     // 完成后是否等待用户输入
-	// OnSelect 需要用户选择文件时回调：rjID 为归一化后的纯数字 ID，basePath 为作品下载根目录
-	// （"downloads/"+任务输入原串，与 spider 侧文件路径前缀一致，用于回退 key 计算），tree 为完整文件树，
-	// initialKeys 为重选时预勾选的 key 集（首次选择为 nil）；返回选中的 key 集与是否确认。
-	// 为 nil 时需要选择的任务将被跳过，仅沿用已有记录下载。
-	OnSelect func(rjID string, basePath string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool)
+// TaskPreparation 单个任务的选择前置数据：由 SelectionSession.Prepare 拉取并判定，
+// 供 TUI 会话分流（沿用/需选择/失败）与后续落盘使用。
+type TaskPreparation struct {
+	Task        string                 // 任务输入原串（RJ/VJ/纯数字）
+	BasePath    string                 // 作品下载根目录（"downloads/"+任务原串，与 spider 侧 key 口径一致）
+	Tracks      []spider.Track         // 完整文件树
+	Analysis    *spider.FormatAnalysis // 格式统计（确认后 FilesForKeys 落盘用）
+	InitialKeys map[string]bool        // 重选时的预勾选 key 集；nil 表示全选
+	Reused      bool                   // true=有可用记录直接沿用（无需打开选择器）
+	ReusedKeys  []string               // 沿用时的文件 key 列表
+	ReusedCount int                    // 沿用文件数（TUI 摘要展示用）
+	Missing     int                    // 沿用时已不存在的文件数（>0 时展示警告）
+	Stale       bool                   // 有记录但与当前文件树完全不符，需重新选择
+	RecordErr   error                  // 选择记录读取失败（按无记录处理，TUI 呈现警告）
+	Err         error                  // 文件树拉取失败（TUI 呈现并跳过该任务）
 }
 
-// DownloadWithSelection 手动文件树选择模式的下载编排：
-// 保存选择模式状态 → 登录 → 逐任务沿用选择记录或回调选择并落盘 → 按每任务策略超时重试循环下载。
-// 返回整个流程是否成功：登录失败、用户中止或全部任务被跳过时为 false；
-// 下载完成后与现有 CLI 下载路径口径一致（无失败文件视为成功）。
-func (a *App) DownloadWithSelection(opts SelectionFlowOptions) bool {
-	// 保存手动选择模式的下载状态（含 SelectionMode 标记）
-	if err := config.SaveDownloadStateForSelection(a.Config, opts.Tasks); err != nil {
+// SelectionSession 手动文件树选择模式的分阶段会话：
+// StartSelectionSession 建立登录与监控 → Prepare/Confirm/Reuse 由 TUI 会话逐任务驱动 → Finish 执行下载。
+// 拆分为阶段是为了让多作品的整个选择流程运行在单个全屏 TUI 内，作品间切换不再回显主终端内容。
+type SelectionSession struct {
+	a             *App
+	client        *spider.ASMRClient
+	reselect      bool
+	strategies    map[string]*spider.FilterStrategy
+	selectedTasks []string
+}
+
+// StartSelectionSession 启动选择会话：保存选择模式下载状态、登录、启动活动监控。
+// 登录失败时打印错误、清除状态并返回 nil。
+func (a *App) StartSelectionSession(tasks []string, reselect bool) *SelectionSession {
+	if err := config.SaveDownloadStateForSelection(a.Config, tasks); err != nil {
 		utils.Error(i18n.T("save_download_state_failed", err))
 	}
 
@@ -287,113 +300,116 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) bool {
 		if err := config.ClearDownloadState(a.Config); err != nil {
 			utils.Error(i18n.T("clear_download_state_failed", err))
 		}
-		return false
+		return nil
 	}
 
 	// 启动活动监控
 	utils.GlobalMonitor.Start()
-	defer utils.GlobalMonitor.Stop()
 
-	// 逐任务解析选择：沿用记录或回调选择，收齐每任务的过滤策略。
-	// 仅成功建立策略的任务才会进入下载循环，避免被跳过的任务回落全局策略后全量下载。
-	strategies := make(map[string]*spider.FilterStrategy)
-	selectedTasks := make([]string, 0, len(opts.Tasks))
-	for _, task := range opts.Tasks {
-		id := task
-		basePath := "downloads/" + id
-
-		tracks, err := c.GetVoiceTracks(id)
-		if err != nil {
-			utils.Error(i18n.T("selection_fetch_failed", id, err))
-			continue
-		}
-		analysis := spider.AnalyzeFormats(tracks, basePath)
-
-		var keys []string
-		needSelect := true
-
-		// 读取选择记录；记录损坏时按无可用记录处理（警告后走选择路径）
-		rec, exists, err := spider.LoadSelection(basePath)
-		if err != nil {
-			utils.Warning(i18n.T("selection_record_read_failed", id, err))
-		}
-
-		// 有记录且未强制重选：尝试沿用
-		if exists && !opts.Reselect {
-			matched, missing := spider.MatchSelection(rec, analysis)
-			if len(matched) > 0 {
-				utils.Info(i18n.T("selection_reused", id, len(matched)))
-				utils.Info(i18n.T("selection_updated_hint"))
-				if missing > 0 {
-					utils.Warning(i18n.T("selection_missing_warn", id, missing))
-				}
-				for _, fi := range matched {
-					keys = append(keys, spider.TrackKey(fi.Track.Hash, fi.Path, fi.Track.Title))
-				}
-				needSelect = false
-			} else {
-				utils.Warning(i18n.T("selection_stale", id))
-			}
-		}
-
-		if needSelect {
-			if opts.OnSelect == nil {
-				utils.Warning(i18n.T("selection_no_selector", id))
-				continue
-			}
-
-			// 重选时把上次记录的 key 集作为预勾选传入
-			var initialKeys map[string]bool
-			if opts.Reselect && exists && rec != nil {
-				initialKeys = make(map[string]bool, len(rec.Files))
-				for _, sf := range rec.Files {
-					initialKeys[sf.Key] = true
-				}
-			}
-
-			selectedKeys, confirmed := opts.OnSelect(id, basePath, tracks, initialKeys)
-			if !confirmed {
-				// 用户取消：中止整个流程；已保存的选择记录与下载状态保留，便于之后继续
-				utils.Info(i18n.T("selection_cancelled"))
-				return false
-			}
-			if len(selectedKeys) == 0 {
-				utils.Warning(i18n.T("selection_task_skipped", id))
-				continue
-			}
-
-			// 立即落盘选择记录，防后续流程中断丢选择
-			files := spider.FilesForKeys(analysis, selectedKeys)
-			if err := spider.SaveSelection(basePath, id, files); err != nil {
-				utils.Error(i18n.T("selection_save_failed", id, err))
-			}
-			for k := range selectedKeys {
-				keys = append(keys, k)
-			}
-		}
-
-		strategies[id] = spider.NewFileManualStrategy(keys)
-		selectedTasks = append(selectedTasks, task)
+	return &SelectionSession{
+		a:             a,
+		client:        c,
+		reselect:      reselect,
+		strategies:    make(map[string]*spider.FilterStrategy),
+		selectedTasks: make([]string, 0, len(tasks)),
 	}
+}
+
+// Prepare 拉取指定任务的文件树并判定沿用/需选择。含网络请求会阻塞，由 TUI 在加载态中调用。
+// 本方法不打印日志：会话 TUI 活跃期间日志已静音，信息经返回值由 TUI 呈现。
+func (s *SelectionSession) Prepare(task string) TaskPreparation {
+	prep := TaskPreparation{Task: task, BasePath: "downloads/" + task}
+
+	tracks, err := s.client.GetVoiceTracks(task)
+	if err != nil {
+		prep.Err = err
+		return prep
+	}
+	prep.Tracks = tracks
+	prep.Analysis = spider.AnalyzeFormats(tracks, prep.BasePath)
+
+	// 读取选择记录；记录损坏时按无可用记录处理（标记后走选择路径）
+	rec, exists, err := spider.LoadSelection(prep.BasePath)
+	if err != nil {
+		prep.RecordErr = err
+	}
+
+	// 有记录且未强制重选：尝试沿用
+	if exists && !s.reselect && rec != nil {
+		matched, missing := spider.MatchSelection(rec, prep.Analysis)
+		if len(matched) > 0 {
+			prep.Reused = true
+			prep.ReusedCount = len(matched)
+			prep.Missing = missing
+			for _, fi := range matched {
+				prep.ReusedKeys = append(prep.ReusedKeys, spider.TrackKey(fi.Track.Hash, fi.Path, fi.Track.Title))
+			}
+			return prep
+		}
+		// 记录与当前文件树完全不符：标记后走重新选择路径
+		prep.Stale = true
+	}
+
+	// 重选时把上次记录的 key 集作为预勾选传入
+	if s.reselect && exists && rec != nil {
+		prep.InitialKeys = make(map[string]bool, len(rec.Files))
+		for _, sf := range rec.Files {
+			prep.InitialKeys[sf.Key] = true
+		}
+	}
+	return prep
+}
+
+// Reuse 沿用已保存选择：直接建立该任务的过滤策略并纳入下载列表。
+func (s *SelectionSession) Reuse(prep TaskPreparation) {
+	s.strategies[prep.Task] = spider.NewFileManualStrategy(prep.ReusedKeys)
+	s.selectedTasks = append(s.selectedTasks, prep.Task)
+}
+
+// Confirm 确认选择：立即落盘选择记录（防后续中断丢失）并建立过滤策略。
+// 落盘失败的错误返回给 TUI 呈现（会话期间日志静音）；策略照常建立，
+// 与原流程「警告后继续下载已选文件」的口径一致。
+func (s *SelectionSession) Confirm(prep TaskPreparation, keys map[string]bool) error {
+	files := spider.FilesForKeys(prep.Analysis, keys)
+	if err := spider.SaveSelection(prep.BasePath, prep.Task, files); err != nil {
+		return err
+	}
+	keyList := make([]string, 0, len(keys))
+	for k := range keys {
+		keyList = append(keyList, k)
+	}
+	s.strategies[prep.Task] = spider.NewFileManualStrategy(keyList)
+	s.selectedTasks = append(s.selectedTasks, prep.Task)
+	return nil
+}
+
+// Cancel 中止会话：停止活动监控。已保存的选择记录与下载状态保留，便于之后继续。
+func (s *SelectionSession) Cancel() {
+	utils.GlobalMonitor.Stop()
+}
+
+// Finish 结束选择并执行下载循环（超时重试，与 DownloadWithMonitorAndFormatSelector 同构）；
+// 全部任务被跳过（拉取失败/未选中文件）时不进入下载循环，直接收尾。
+// 返回整个流程是否成功：与现有 CLI 下载路径口径一致（无失败文件视为成功）。
+func (s *SelectionSession) Finish(waitForInput bool) bool {
+	utils.GlobalMonitor.Stop()
 
 	// 与现有 CLI 下载路径口径一致：无失败文件视为成功；全部任务被跳过时未发生下载，视为失败
 	success := false
 
-	// 超时重试循环：与 DownloadWithMonitorAndFormatSelector 同构；
-	// 全部任务被跳过（获取文件树失败/无选择器/未选中文件）时不进入下载循环，直接走收尾
-	if len(selectedTasks) > 0 {
+	if len(s.selectedTasks) > 0 {
 		var result *DownloadResult
 		for {
 			// 启动超时检测goroutine
 			stopMonitor, timeoutDetected := startTimeoutWatcher()
 
 			// 执行下载（仅含成功建立策略的任务）
-			result = a.Download(DownloadOptions{
-				Tasks:           selectedTasks,
+			result = s.a.Download(DownloadOptions{
+				Tasks:           s.selectedTasks,
 				ShowProgress:    true,
 				WaitForInput:    false,
 				TimeoutDetected: timeoutDetected,
-				TaskFilters:     strategies,
+				TaskFilters:     s.strategies,
 			})
 
 			// 停止监控
@@ -414,12 +430,12 @@ func (a *App) DownloadWithSelection(opts SelectionFlowOptions) bool {
 	}
 
 	// 清除下载状态
-	if err := config.ClearDownloadState(a.Config); err != nil {
+	if err := config.ClearDownloadState(s.a.Config); err != nil {
 		utils.Error(i18n.T("clear_download_state_failed", err))
 	}
 
 	// 等待用户输入
-	if opts.WaitForInput {
+	if waitForInput {
 		utils.Info(i18n.T("press_enter_to_return"))
 		reader := bufio.NewReader(os.Stdin)
 		reader.ReadString('\n')

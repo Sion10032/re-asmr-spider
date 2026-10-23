@@ -5,32 +5,65 @@ import (
 
 	"re-asmr-spider/app"
 	"re-asmr-spider/i18n"
-	"re-asmr-spider/spider"
 	"re-asmr-spider/utils"
 )
 
 // SelectAndDownload 手动文件树选择模式的下载入口：
-// 构建 OnSelect 回调（选择器返回 nil 或未确认时一律按取消处理，由编排层中止流程），
-// 交给 DownloadWithSelection 编排（沿用记录或打开 TUI 选择，reselect 为 true 时强制重新选择）。
+// 启动业务会话（登录/监控）→ 预解析阶段（TUI 外逐任务拉取文件树并判定沿用，正常日志反馈）→
+// 仅当存在需要手动选择的任务时才打开全屏会话（预解析结果缓存传入，会话内无加载态）→ 执行下载。
+// 全部任务都能沿用记录时全程不弹 TUI；多作品选择时单个全屏程序内完成，作品间切换零回显。
 // 返回整个流程是否成功，供 CLI 路径决定退出码；菜单路径可忽略返回值。
 func SelectAndDownload(application *app.App, tasks []string, reselect bool, waitForInput bool) bool {
-	onSelect := func(workID string, basePath string, tree []spider.Track, initialKeys map[string]bool) (map[string]bool, bool) {
-		// initialKeys 由编排层在重选场景下从旧记录的 key 集构造，直接透传给 TUI 做预勾选；
-		// basePath 透传给 TUI，保证无 hash 文件的回退 key 与 spider 侧口径一致
-		selectedKeys, confirmed := RunTreeSelector(workID, basePath, tree, initialKeys)
-		if selectedKeys == nil {
-			// 程序出错路径：按未确认处理，编排层会中止下载
-			return nil, false
-		}
-		return selectedKeys, confirmed
+	session := application.StartSelectionSession(tasks, reselect)
+	if session == nil {
+		// 登录失败等启动错误已在会话启动时打印
+		return false
 	}
 
-	return application.DownloadWithSelection(app.SelectionFlowOptions{
-		Tasks:        tasks,
-		Reselect:     reselect,
-		WaitForInput: waitForInput,
-		OnSelect:     onSelect,
-	})
+	// 预解析：逐任务拉取文件树并判定沿用/需选择。
+	// 本阶段在 TUI 外，日志正常输出：拉取前后均有反馈（与普通下载路径同一对日志键），
+	// 多作品连续拉取期间终端不静默。
+	pending := make([]app.TaskPreparation, 0, len(tasks))
+	for _, task := range tasks {
+		utils.Info(i18n.T("fetching_work_info", task))
+		prep := session.Prepare(task)
+		if prep.Err != nil {
+			utils.Error(i18n.T("selection_fetch_failed", prep.Task, prep.Err))
+			continue
+		}
+		utils.Success(i18n.T("work_info_fetched", prep.Task))
+		if prep.Reused {
+			session.Reuse(prep)
+			utils.Info(i18n.T("selection_reused", prep.Task, prep.ReusedCount))
+			if prep.Missing > 0 {
+				utils.Warning(i18n.T("selection_missing_warn", prep.Task, prep.Missing))
+			}
+			utils.Info(i18n.T("selection_updated_hint"))
+			continue
+		}
+		if prep.RecordErr != nil {
+			utils.Warning(i18n.T("selection_record_read_failed", prep.Task, prep.RecordErr))
+		}
+		if prep.Stale {
+			utils.Warning(i18n.T("selection_stale", prep.Task))
+		}
+		pending = append(pending, prep)
+	}
+
+	// 仅存在需要手动选择的任务时才打开全屏会话
+	if len(pending) > 0 {
+		proceed, notices := RunSelectionSession(session, pending)
+		for _, line := range notices {
+			utils.Warning(line)
+		}
+		if !proceed {
+			// 用户中止：已保存的选择记录与下载状态保留，便于之后继续
+			utils.Info(i18n.T("selection_cancelled"))
+			return false
+		}
+	}
+
+	return session.Finish(waitForInput)
 }
 
 // StartSelectDownload 手动选择下载界面：读作品号（空格分隔，与 StartDownload 一致），空输入警告后返回菜单。

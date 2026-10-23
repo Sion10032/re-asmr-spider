@@ -165,7 +165,6 @@ type flatRow struct {
 
 // treeSelectorModel 文件树勾选器的 bubbletea 模型
 type treeSelectorModel struct {
-	workID    string
 	roots     []*selectorNode
 	flat      []flatRow
 	depths    map[*selectorNode]int
@@ -182,10 +181,9 @@ type treeSelectorModel struct {
 }
 
 // newTreeSelectorModel 构造初始模型；basePath 为作品下载根目录，与 spider 侧共同参与 key 计算
-func newTreeSelectorModel(workID string, basePath string, tree []spider.Track, initialKeys map[string]bool) *treeSelectorModel {
+func newTreeSelectorModel(basePath string, tree []spider.Track, initialKeys map[string]bool) *treeSelectorModel {
 	roots := buildNodes(tree, basePath)
 	m := &treeSelectorModel{
-		workID:    workID,
 		roots:     roots,
 		depths:    make(map[*selectorNode]int),
 		selected:  initSelectedKeys(roots, initialKeys),
@@ -235,9 +233,9 @@ func (m *treeSelectorModel) syncOffset() {
 	}
 }
 
-// listHeight 可视区可容纳的行数（顶部两行 + 底部两行固定）
+// listHeight 可视区可容纳的行数（顶部统计行各占一行，底部状态与按键提示行占两行）
 func (m *treeSelectorModel) listHeight() int {
-	h := m.height - 4
+	h := m.height - 3
 	if h < 1 {
 		h = 1
 	}
@@ -352,7 +350,8 @@ func truncateWidth(s string, max int) string {
 	return runewidth.Truncate(s, max, "…")
 }
 
-// View 渲染整屏：顶部固定作品号与统计行，中部可视区滚动列表，底部状态与按键提示
+// View 渲染整屏：顶部固定统计行，中部可视区滚动列表，底部状态与按键提示；
+// 作品号由上层会话进度行展示，此处不再重复
 func (m *treeSelectorModel) View() string {
 	if m.width == 0 || m.height == 0 {
 		return i18n.T("tui_loading")
@@ -361,12 +360,9 @@ func (m *treeSelectorModel) View() string {
 	listH := m.listHeight()
 
 	stats := spider.CountByFormat(m.fileInfos)
-	header := m.workID
 	statsLine := i18n.T("tui_header_stats", m.totalSelected(), stats.Wav, stats.Flac, stats.Mp3, stats.Aac, stats.Other, stats.Total)
 
 	var b strings.Builder
-	b.WriteString(truncateWidth(header, m.width))
-	b.WriteString("\n")
 	b.WriteString(truncateWidth(statsLine, m.width))
 	b.WriteString("\n")
 
@@ -425,26 +421,4 @@ func (m *treeSelectorModel) View() string {
 	hints := i18n.T("tui_help_line")
 	b.WriteString(truncateWidth(hints, m.width))
 	return b.String()
-}
-
-// RunTreeSelector 启动全屏文件树勾选器。
-// basePath 为作品下载根目录（"downloads/"+作品号输入原样），必须与 spider 侧收集文件路径时使用的
-// 前缀一致，否则无 hash 文件的回退 key（path|title）两端对不上。
-// initialKeys 非 nil 时初始选中恰为该集合，nil 时全选；
-// confirmed=false 表示 q/Esc 退出取消，此时 selectedKeys 返回 nil。
-func RunTreeSelector(workID string, basePath string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool) {
-	model := newTreeSelectorModel(workID, basePath, tree, initialKeys)
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	finalModel, err := p.Run()
-	if err != nil {
-		return nil, false
-	}
-	m, ok := finalModel.(*treeSelectorModel)
-	if !ok {
-		return nil, false
-	}
-	if !m.confirmed {
-		return nil, false
-	}
-	return m.selected, true
 }

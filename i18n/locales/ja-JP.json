@@ -1,4 +1,6 @@
 {
+  "session_progress": "作品 %d/%d：%s",
+  "session_skip_confirm": "ファイルが未選択です：もう一度 Enter でこの作品をスキップします",
   "welcome": "%s へようこそ",
   "config_loaded": "設定ファイルを読み込みました",
   "main_menu": "メインメニュー",
@@ -165,7 +167,6 @@
   "selection_stale": "作品 %s 保存された選択が現在のファイルツリーと一致しません。再選択してください",
   "selection_record_read_failed": "作品 %s 選択記録の読み込みに失敗しました。記録なしとして扱います: %v",
   "selection_fetch_failed": "作品 %s のファイルリストの取得に失敗しました。このタスクをスキップします: %v",
-  "selection_no_selector": "作品 %s 手動ファイル選択が必要ですがセレクターが提供されていません。このタスクをスキップします",
   "selection_cancelled": "ファイル選択がキャンセルされました。ダウンロードを中止します（保存された選択記録は保持されます）",
   "selection_task_skipped": "作品 %s ファイルが選択されていません。このタスクをスキップします",
   "selection_save_failed": "作品 %s 選択記録の保存に失敗しました: %v",

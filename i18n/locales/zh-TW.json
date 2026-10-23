@@ -1,4 +1,6 @@
 {
+  "session_progress": "作品 %d/%d：%s",
+  "session_skip_confirm": "未選擇任何檔案：再按一次 Enter 跳過該作品",
   "welcome": "歡迎使用 %s",
   "config_loaded": "配置文件已加載",
   "main_menu": "主菜單",
@@ -165,7 +167,6 @@
   "selection_stale": "作品 %s 已保存選擇與當前文件樹不符，請重新選擇",
   "selection_record_read_failed": "作品 %s 選擇記錄讀取失敗，將按無記錄處理: %v",
   "selection_fetch_failed": "獲取 作品 %s 文件列表失敗，跳過該任務: %v",
-  "selection_no_selector": "作品 %s 需要手動選擇檔案但未提供選擇器，跳過該任務",
   "selection_cancelled": "已取消文件選擇，下載中止（已保存的選擇記錄保留）",
   "selection_task_skipped": "作品 %s 未選擇任何檔案，跳過該任務",
   "selection_save_failed": "作品 %s 保存選擇記錄失敗: %v",
