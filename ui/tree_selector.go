@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbletea"
@@ -20,8 +21,20 @@ type selectorNode struct {
 	Children []*selectorNode // 子节点（仅目录有）
 }
 
+// sortNodes 原地排序节点：文件夹在前、文件在后，组内按标题默认字典序
+func sortNodes(nodes []*selectorNode) {
+	sort.SliceStable(nodes, func(i, j int) bool {
+		a, b := nodes[i], nodes[j]
+		if a.IsFolder != b.IsFolder {
+			return a.IsFolder
+		}
+		return a.Title < b.Title
+	})
+}
+
 // buildNodes 将 spider.Track 树转换为选择器节点树；
 // parentPath 为当前层级的目录路径，文件的 key 使用其所在目录路径计算。
+// 每层节点排序：文件夹在前、文件在后，组内按标题默认字典序。
 func buildNodes(tree []spider.Track, parentPath string) []*selectorNode {
 	nodes := make([]*selectorNode, 0, len(tree))
 	for i := range tree {
@@ -40,6 +53,7 @@ func buildNodes(tree []spider.Track, parentPath string) []*selectorNode {
 			})
 		}
 	}
+	sortNodes(nodes)
 	return nodes
 }
 

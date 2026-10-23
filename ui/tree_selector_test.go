@@ -60,6 +60,48 @@ func leafKeysOf(nodes []*selectorNode) map[string]bool {
 	return keys
 }
 
+// TestBuildNodesSortedOrder 验证每层节点排序：文件夹在前、文件在后，组内按标题默认字典序。
+func TestBuildNodesSortedOrder(t *testing.T) {
+	tree := []spider.Track{
+		{Type: "audio", Title: "10.mp3", Hash: "h10"},
+		{Type: "folder", Title: "B盘", Children: []spider.Track{
+			{Type: "audio", Title: "track10.wav", Hash: "h10b"},
+			{Type: "audio", Title: "track2.wav", Hash: "h2"},
+		}},
+		{Type: "audio", Title: "02.mp3", Hash: "h02"},
+		{Type: "folder", Title: "A盘", Children: []spider.Track{}},
+		{Type: "audio", Title: "2.mp3", Hash: "h2x"},
+	}
+	nodes := buildNodes(tree, "base")
+
+	if len(nodes) != 5 {
+		t.Fatalf("根节点数 = %d, 期望 5", len(nodes))
+	}
+
+	// 文件夹在前，组内按默认字典序：A盘 < B盘
+	if !nodes[0].IsFolder || nodes[0].Title != "A盘" {
+		t.Fatalf("nodes[0] = %+v, 期望文件夹 A盘", nodes[0])
+	}
+	if !nodes[1].IsFolder || nodes[1].Title != "B盘" {
+		t.Fatalf("nodes[1] = %+v, 期望文件夹 B盘", nodes[1])
+	}
+
+	// 文件组按默认字典序：02.mp3 < 10.mp3 < 2.mp3
+	got := []string{nodes[2].Title, nodes[3].Title, nodes[4].Title}
+	want := []string{"02.mp3", "10.mp3", "2.mp3"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("文件顺序 = %v, 期望 %v", got, want)
+		}
+	}
+
+	// 子层级同样生效：字典序 track10 < track2
+	children := nodes[1].Children
+	if children[0].Title != "track10.wav" || children[1].Title != "track2.wav" {
+		t.Fatalf("子级顺序 = [%s %s], 期望 [track10.wav track2.wav]", children[0].Title, children[1].Title)
+	}
+}
+
 func TestBuildNodes(t *testing.T) {
 	nodes := buildNodes(buildTestTree(), "base")
 
@@ -82,28 +124,28 @@ func TestBuildNodes(t *testing.T) {
 		t.Fatalf("文件夹A 子节点数 = %d, 期望 2", len(folderA.Children))
 	}
 
+	// 排序后子目录（文件夹）在前
+	sub := folderA.Children[0]
+	if !sub.IsFolder || sub.Title != "子目录" || len(sub.Children) != 2 {
+		t.Fatalf("子目录节点 = %+v, 期望含 2 个子文件的文件夹", sub)
+	}
+
 	// 文件 key 与 spider.TrackKey 一致：hash 优先
-	wav := folderA.Children[0]
+	wav := folderA.Children[1]
 	wantWavKey := spider.TrackKey("h1", filepath.Join("base", "文件夹A"), "01.wav")
 	if wav.IsFolder || wav.Key != wantWavKey {
 		t.Fatalf("01.wav 节点 = %+v, key 期望 %q", wav, wantWavKey)
 	}
 
-	// 嵌套子目录层级正确
-	sub := folderA.Children[1]
-	if !sub.IsFolder || sub.Title != "子目录" || len(sub.Children) != 2 {
-		t.Fatalf("子目录节点 = %+v, 期望含 2 个子文件的文件夹", sub)
-	}
-
-	// 根级无 hash 文件：key 回退为 path|title
-	noHash := nodes[1]
+	// 根级文件自然排序：04.m4a（'0' < 'n'）在 no-hash.txt 之前
+	noHash := nodes[2]
 	wantNoHashKey := spider.TrackKey("", "base", "no-hash.txt")
 	if noHash.IsFolder || noHash.Key != wantNoHashKey {
 		t.Fatalf("no-hash.txt key = %q, 期望 %q", noHash.Key, wantNoHashKey)
 	}
 
 	// 根级叶子
-	leaf := nodes[2]
+	leaf := nodes[1]
 	if leaf.IsFolder || leaf.Key != spider.TrackKey("h4", "base", "04.m4a") {
 		t.Fatalf("04.m4a 节点 = %+v, key 期望 h4", leaf)
 	}
@@ -127,13 +169,13 @@ func TestToggleNode(t *testing.T) {
 	}{
 		{
 			name:    "勾叶子-从未选中到选中",
-			target:  nodes[2],
+			target:  nodes[1],
 			initial: map[string]bool{},
 			want:    map[string]bool{"h4": true},
 		},
 		{
 			name:    "再勾叶子-取消选中",
-			target:  nodes[2],
+			target:  nodes[1],
 			initial: map[string]bool{"h4": true},
 			want:    map[string]bool{},
 		},
@@ -191,8 +233,8 @@ func TestToggleNode(t *testing.T) {
 func TestCountNode(t *testing.T) {
 	nodes := buildNodes(buildTestTree(), "base")
 	folderA := nodes[0]
-	sub := folderA.Children[1]
-	wav := folderA.Children[0]
+	sub := folderA.Children[0] // 排序后文件夹在前
+	wav := folderA.Children[1]
 	leaf := nodes[2]
 
 	tests := []struct {
@@ -232,7 +274,7 @@ func TestCountNode(t *testing.T) {
 		},
 		{
 			name:         "根级无 hash 叶子",
-			node:         nodes[1],
+			node:         nodes[2],
 			selected:     map[string]bool{},
 			wantSelected: 0,
 			wantTotal:    1,
@@ -424,17 +466,17 @@ func TestBuildNodesKeysMatchSpiderAnalysis(t *testing.T) {
 	}{
 		{
 			name:       "根级无hash文件-回退key两端一致",
-			keys:       pickFile(nodes[1]),
+			keys:       pickFile(nodes[2]),
 			wantTitles: []string{"no-hash.txt"},
 		},
 		{
 			name:       "目录内hash文件",
-			keys:       pickFile(nodes[0].Children[0]),
+			keys:       pickFile(nodes[0].Children[1]),
 			wantTitles: []string{"01.wav"},
 		},
 		{
 			name:       "嵌套子目录文件",
-			keys:       pickFile(nodes[0].Children[1].Children[1]),
+			keys:       pickFile(nodes[0].Children[0].Children[1]),
 			wantTitles: []string{"03.flac"},
 		},
 	}
