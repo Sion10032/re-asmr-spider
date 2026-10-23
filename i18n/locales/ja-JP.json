@@ -154,7 +154,7 @@
 
   "tui_loading": "ファイルツリーセレクターを読み込み中...",
   "tui_header_stats": "選択済み %d | wav:%d flac:%d mp3:%d aac:%d その他:%d | 合計 %d ファイル",
-  "tui_help_line": "↑/↓/j/k 移動  スペース 選択  Enter/→ 展開 ← 折りたたみ  a 全選択  n 全解除  PgUp/PgDn スクロール  q 確認  Esc キャンセル",
+  "tui_help_line": "↑/↓/j/k 移動  Space 選択  →/l 展開 ←/h 折りたたみ  Enter 確認  a 全選択  n 全解除  PgUp/PgDn スクロール  q/Esc 終了",
   "tui_selected_all": "すべてのファイルを選択しました",
   "tui_selected_none": "すべてのファイルを選択解除しました",
   "tui_none_selected": "ファイルが選択されていません",

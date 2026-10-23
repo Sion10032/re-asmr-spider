@@ -2,8 +2,10 @@ package ui
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
 
 	"re-asmr-spider/spider"
@@ -455,5 +457,122 @@ func TestBuildNodesKeysMatchSpiderAnalysis(t *testing.T) {
 	files := spider.FilesForKeys(analysis, leafKeysOf(nodes))
 	if len(files) != 5 {
 		t.Fatalf("全选命中数 = %d, 期望 5", len(files))
+	}
+}
+
+// pressKey 向模型发送按键消息并返回更新后的模型。
+func pressKey(t *testing.T, m *treeSelectorModel, key tea.KeyMsg) *treeSelectorModel {
+	t.Helper()
+	next, _ := m.Update(key)
+	nm, ok := next.(*treeSelectorModel)
+	if !ok {
+		t.Fatal("Update 返回了非 *treeSelectorModel 类型")
+	}
+	return nm
+}
+
+// TestSelectorKeybindings 验证确认/退出/展开/折叠的按键分配：
+// enter 确认（无选中时仅警告不退出），q/Esc 退出，→/l 展开，←/h 折叠。
+func TestSelectorKeybindings(t *testing.T) {
+	newModel := func() *treeSelectorModel {
+		// nil initialKeys → 全选，enter 可直接确认
+		return newTreeSelectorModel("RJ123456", "downloads/RJ123456", buildTestTree(), nil)
+	}
+
+	t.Run("enter确认并退出", func(t *testing.T) {
+		m := pressKey(t, newModel(), tea.KeyMsg{Type: tea.KeyEnter})
+		if !m.confirmed || m.cancelled {
+			t.Fatalf("enter 应确认下载, confirmed=%v cancelled=%v", m.confirmed, m.cancelled)
+		}
+	})
+
+	t.Run("enter无选中时仅警告不退出", func(t *testing.T) {
+		m := newTreeSelectorModel("RJ123456", "downloads/RJ123456", buildTestTree(), map[string]bool{})
+		m = pressKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+		if m.confirmed || m.cancelled {
+			t.Fatalf("无选中时 enter 不应退出, confirmed=%v cancelled=%v", m.confirmed, m.cancelled)
+		}
+		if m.statusMsg == "" {
+			t.Fatal("无选中时 enter 应给出警告状态消息")
+		}
+	})
+
+	t.Run("q退出即取消", func(t *testing.T) {
+		m := pressKey(t, newModel(), tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		if !m.cancelled || m.confirmed {
+			t.Fatalf("q 应取消退出, confirmed=%v cancelled=%v", m.confirmed, m.cancelled)
+		}
+	})
+
+	t.Run("esc退出即取消", func(t *testing.T) {
+		m := pressKey(t, newModel(), tea.KeyMsg{Type: tea.KeyEscape})
+		if !m.cancelled || m.confirmed {
+			t.Fatalf("esc 应取消退出, confirmed=%v cancelled=%v", m.confirmed, m.cancelled)
+		}
+	})
+
+	t.Run("方向键与l_h展开折叠", func(t *testing.T) {
+		m := newModel()
+		collapsedRows := len(m.flat) // 初始 3 行：文件夹A + no-hash.txt + 04.m4a
+
+		m = pressKey(t, m, tea.KeyMsg{Type: tea.KeyRight})
+		if len(m.flat) <= collapsedRows {
+			t.Fatalf("→ 应展开文件夹, 行数 %d 未增加", len(m.flat))
+		}
+		m = pressKey(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+		if len(m.flat) != collapsedRows {
+			t.Fatalf("h 应折叠文件夹, 行数 %d != %d", len(m.flat), collapsedRows)
+		}
+		m = pressKey(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+		if len(m.flat) <= collapsedRows {
+			t.Fatalf("l 应展开文件夹, 行数 %d 未增加", len(m.flat))
+		}
+		m = pressKey(t, m, tea.KeyMsg{Type: tea.KeyLeft})
+		if len(m.flat) != collapsedRows {
+			t.Fatalf("← 应折叠文件夹, 行数 %d != %d", len(m.flat), collapsedRows)
+		}
+	})
+}
+
+// TestViewFolderExpandIndicator 验证文件夹行以 v/> 标识展开/折叠状态。
+func TestViewFolderExpandIndicator(t *testing.T) {
+	m := newTreeSelectorModel("RJ123456", "downloads/RJ123456", buildTestTree(), nil)
+	m.width = 80
+	m.height = 12
+
+	// 折叠态：应含折叠指示符且不渲染子文件
+	view := m.View()
+	if !strings.Contains(view, "] > ") {
+		t.Fatal("折叠状态的文件夹行应包含 > 指示符")
+	}
+	if strings.Contains(view, "01.wav") {
+		t.Fatal("折叠状态下不应渲染子文件 01.wav")
+	}
+
+	// 展开态：应含展开指示符且渲染子文件
+	m = pressKey(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	view = m.View()
+	if !strings.Contains(view, "] v ") {
+		t.Fatal("展开状态的文件夹行应包含 v 指示符")
+	}
+	if !strings.Contains(view, "01.wav") {
+		t.Fatal("展开状态下应渲染子文件 01.wav")
+	}
+
+	// 文件行以空格占位指示符列：标题相对各自缩进对齐（文件夹行深度 0，文件行深度 1 多一层缩进）
+	folderLine, fileLine := "", ""
+	for _, l := range strings.Split(view, "\n") {
+		if strings.Contains(l, "文件夹A") {
+			folderLine = l
+		}
+		if strings.Contains(l, "01.wav") {
+			fileLine = l
+		}
+	}
+	if folderLine != "> [x] v 文件夹A (3/3)" {
+		t.Fatalf("文件夹行渲染不符, got %q", folderLine)
+	}
+	if fileLine != "    [x]   01.wav" {
+		t.Fatalf("文件行渲染不符（应占位指示符列）, got %q", fileLine)
 	}
 }

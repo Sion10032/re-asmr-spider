@@ -285,7 +285,15 @@ func (m *treeSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.flat) {
 				toggleNode(m.selected, m.flat[m.cursor].node)
 			}
-		case "enter", "right":
+		case "enter":
+			// 确认勾选并退出开始下载；无选中时仅警告不退出
+			if m.totalSelected() == 0 {
+				m.statusMsg = i18n.T("tui_none_selected")
+				return m, nil
+			}
+			m.confirmed = true
+			return m, tea.Quit
+		case "right", "l":
 			if m.cursor < len(m.flat) {
 				n := m.flat[m.cursor].node
 				if n.IsFolder {
@@ -294,7 +302,7 @@ func (m *treeSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.syncOffset()
 				}
 			}
-		case "left":
+		case "left", "h":
 			if m.cursor < len(m.flat) {
 				n := m.flat[m.cursor].node
 				if n.IsFolder && m.expanded[n.Key] {
@@ -319,14 +327,8 @@ func (m *treeSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "pgdown":
 			m.cursor = pageCursor(m.cursor, m.listHeight(), len(m.flat))
 			m.syncOffset()
-		case "q":
-			if m.totalSelected() == 0 {
-				m.statusMsg = i18n.T("tui_none_selected")
-				return m, nil
-			}
-			m.confirmed = true
-			return m, tea.Quit
-		case "esc":
+		case "q", "esc":
+			// q/Esc 退出：放弃选择返回，与 TUI 通用惯例一致
 			m.cancelled = true
 			return m, tea.Quit
 		}
@@ -390,13 +392,19 @@ func (m *treeSelectorModel) View() string {
 			case sel > 0:
 				mark = "[-]"
 			}
-			line = fmt.Sprintf("%s%s%s %s (%d/%d)", prefix, indent, mark, row.node.Title, sel, total)
+			// 展开状态标识：已展开 v / 已折叠 >，位于勾选框之后（纯 ASCII 保证等宽单列）
+			arrow := ">"
+			if m.expanded[row.node.Key] {
+				arrow = "v"
+			}
+			line = fmt.Sprintf("%s%s%s %s %s (%d/%d)", prefix, indent, mark, arrow, row.node.Title, sel, total)
 		} else {
 			mark := "[ ]"
 			if m.selected[row.node.Key] {
 				mark = "[x]"
 			}
-			line = fmt.Sprintf("%s%s%s %s", prefix, indent, mark, row.node.Title)
+			// 文件行以空格占位文件夹行的指示符列（ASCII 字符 + 后随空格），保证两类标题列对齐
+			line = fmt.Sprintf("%s%s%s   %s", prefix, indent, mark, row.node.Title)
 		}
 		b.WriteString(truncateWidth(line, m.width))
 		b.WriteString("\n")
@@ -423,7 +431,7 @@ func (m *treeSelectorModel) View() string {
 // basePath 为作品下载根目录（"downloads/"+作品号输入原样），必须与 spider 侧收集文件路径时使用的
 // 前缀一致，否则无 hash 文件的回退 key（path|title）两端对不上。
 // initialKeys 非 nil 时初始选中恰为该集合，nil 时全选；
-// confirmed=false 表示 Esc 取消，此时 selectedKeys 返回 nil。
+// confirmed=false 表示 q/Esc 退出取消，此时 selectedKeys 返回 nil。
 func RunTreeSelector(workID string, basePath string, tree []spider.Track, initialKeys map[string]bool) (selectedKeys map[string]bool, confirmed bool) {
 	model := newTreeSelectorModel(workID, basePath, tree, initialKeys)
 	p := tea.NewProgram(model, tea.WithAltScreen())

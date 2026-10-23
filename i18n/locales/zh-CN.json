@@ -154,7 +154,7 @@
 
   "tui_loading": "正在加载文件树选择器...",
   "tui_header_stats": "已选 %d | wav:%d flac:%d mp3:%d aac:%d 其它:%d | 共 %d 文件",
-  "tui_help_line": "↑/↓/j/k 移动  空格 勾选  回车/→ 展开 ← 折叠  a 全选  n 全不选  PgUp/PgDn 滚动  q 确认  Esc 取消",
+  "tui_help_line": "↑/↓/j/k 移动  Space 勾选  →/l 展开 ←/h 折叠  Enter 确认  a 全选  n 全不选  PgUp/PgDn 滚动  q/Esc 退出",
   "tui_selected_all": "已全选",
   "tui_selected_none": "已全不选",
   "tui_none_selected": "未选择任何文件",

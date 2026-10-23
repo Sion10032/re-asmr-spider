@@ -154,7 +154,7 @@
 
   "tui_loading": "Loading file tree selector...",
   "tui_header_stats": "Selected %d | wav:%d flac:%d mp3:%d aac:%d other:%d | %d files total",
-  "tui_help_line": "↑/↓/j/k move  Space toggle  Enter/→ expand ← collapse  a select all  n select none  PgUp/PgDn scroll  q confirm  Esc cancel",
+  "tui_help_line": "↑/↓/j/k move  Space toggle  →/l expand ←/h collapse  Enter confirm  a select all  n select none  PgUp/PgDn scroll  q/Esc quit",
   "tui_selected_all": "All files selected",
   "tui_selected_none": "All files deselected",
   "tui_none_selected": "No files selected",
